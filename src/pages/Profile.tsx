@@ -3,6 +3,7 @@ import { Layout } from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useMutation } from '@tanstack/react-query'
+import { UserPredictionsView } from '@/components/UserPredictionsView'
 
 export default function Profile() {
   const { user, profile, refreshProfile } = useAuth()
@@ -14,6 +15,9 @@ export default function Profile() {
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
+  type ProfileTab = 'profile' | 'security' | 'predictions'
+  const [activeTab, setActiveTab] = useState<ProfileTab>('profile')
 
   // Populate local form fields on profile change
   useEffect(() => {
@@ -95,21 +99,58 @@ export default function Profile() {
 
   return (
     <Layout>
-      <div className="space-y-8 max-w-2xl mx-auto">
+      <div className="space-y-8 max-w-5xl mx-auto px-4 sm:px-6">
         <div>
           <h1 className="text-3xl font-extrabold font-display text-gradient">
             User Settings
           </h1>
           <p className="text-text-secondary text-sm">
-            Manage your personal profile and authentication credentials.
+            Manage your personal profile, authentication credentials, and view your predictions.
           </p>
         </div>
 
-        {/* Profile Card details */}
-        <div className="glass p-6 sm:p-8 rounded-2xl border border-border/80 space-y-6">
-          <h2 className="text-xl font-bold font-display flex items-center gap-2">
-            <span>👤</span> Public Profile Settings
-          </h2>
+        <div className="flex flex-col md:flex-row gap-8 items-start">
+          {/* Navigation Menu */}
+          <div className="w-full md:w-64 shrink-0 glass p-4 rounded-2xl border border-border/80 flex flex-col gap-2">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+                activeTab === 'profile'
+                  ? 'bg-brand text-text-inverse shadow-md shadow-brand/20'
+                  : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
+              }`}
+            >
+              <span className="text-lg">👤</span> Public Profile
+            </button>
+            <button
+              onClick={() => setActiveTab('security')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+                activeTab === 'security'
+                  ? 'bg-brand text-text-inverse shadow-md shadow-brand/20'
+                  : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
+              }`}
+            >
+              <span className="text-lg">🔒</span> Security
+            </button>
+            <button
+              onClick={() => setActiveTab('predictions')}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+                activeTab === 'predictions'
+                  ? 'bg-brand text-text-inverse shadow-md shadow-brand/20'
+                  : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
+              }`}
+            >
+              <span className="text-lg">⚽</span> My Predictions
+            </button>
+          </div>
+
+          {/* Content Area */}
+          <div className="flex-1 w-full min-w-0">
+            {activeTab === 'profile' && (
+              <div className="glass p-6 sm:p-8 rounded-2xl border border-border/80 space-y-6">
+                <h2 className="text-xl font-bold font-display flex items-center gap-2">
+                  <span>👤</span> Public Profile Settings
+                </h2>
 
           {errorMsg && (
             <div className="p-3 text-sm rounded-md bg-live-muted border border-live text-live">
@@ -190,8 +231,10 @@ export default function Profile() {
             </button>
           </form>
         </div>
+        )}
 
         {/* Change Password Card */}
+        {activeTab === 'security' && (
         <div className="glass p-6 sm:p-8 rounded-2xl border border-border/80 space-y-6">
           <h2 className="text-xl font-bold font-display flex items-center gap-2">
             <span>🔒</span> Update Account Password
@@ -232,6 +275,25 @@ export default function Profile() {
               {passLoading ? 'Updating...' : 'Update Password'}
             </button>
           </form>
+        </div>
+        )}
+
+        {/* User Predictions View */}
+        {activeTab === 'predictions' && (
+        <div className="glass p-6 sm:p-8 rounded-2xl border border-border/80 space-y-6">
+          <h2 className="text-xl font-bold font-display flex items-center gap-2 mb-6">
+            <span>⚽</span> Your Predictions
+          </h2>
+          {user?.id ? (
+            <UserPredictionsView 
+              userId={user.id} 
+              profile={profile} 
+              showWarning={false} 
+            />
+          ) : null}
+        </div>
+        )}
+          </div>
         </div>
       </div>
     </Layout>

@@ -18,6 +18,7 @@ const PoolDetail = lazy(() => import('@/pages/PoolDetail'))
 const Profile = lazy(() => import('@/pages/Profile'))
 const Rules = lazy(() => import('@/pages/Rules'))
 const Simulator = lazy(() => import('@/pages/Simulator'))
+const AdminPredictions = lazy(() => import('@/pages/AdminPredictions'))
 
 function PageLoader() {
   return (
@@ -51,6 +52,7 @@ export function AppRouter() {
             {/* Admin-only routes */}
             <Route element={<AdminGuard />}>
               <Route path="/simulator" element={<Simulator />} />
+              <Route path="/admin/predictions" element={<AdminPredictions />} />
             </Route>
           </Route>
 

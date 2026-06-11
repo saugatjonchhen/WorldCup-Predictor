@@ -22,7 +22,12 @@ export function Layout({ children }: LayoutProps) {
     { label: 'Pools', path: '/pools', icon: '🤝' },
     { label: 'Rules', path: '/rules', icon: '📜' },
     { label: 'Profile', path: '/profile', icon: '👤' },
-    ...(profile?.role === 'admin' ? [{ label: 'Simulator', path: '/simulator', icon: '⚙️' }] : []),
+    ...(profile?.role === 'admin'
+      ? [
+          { label: 'Simulator', path: '/simulator', icon: '⚙️' },
+          { label: 'Admin View', path: '/admin/predictions', icon: '🔑' },
+        ]
+      : []),
   ]
 
   return (
