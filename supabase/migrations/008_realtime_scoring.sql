@@ -64,7 +64,9 @@ BEGIN
   END IF;
 
   -- 2. Correct Goal Difference (2 points)
-  IF (p_actual_home - p_actual_away) = (p_pred_home - p_pred_away) THEN
+  -- Awarded if goal differences match AND it's not a draw (or if it's an exact match)
+  IF (p_actual_home - p_actual_away) = (p_pred_home - p_pred_away) AND 
+     (v_actual_res <> 'draw' OR (p_actual_home = p_pred_home AND p_actual_away = p_pred_away)) THEN
     v_correct_gd := true;
     v_points := v_points + 2;
   END IF;

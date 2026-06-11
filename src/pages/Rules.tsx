@@ -25,23 +25,24 @@ export default function Rules() {
 
     const isExact = predHome === actualHome && predAway === actualAway
 
+    // Check correct outcome
+    const correctOutcome = predWinner === actualWinner
+    if (correctOutcome) {
+      pts += 3
+      breakDown.push('🏆 Correct Outcome/Winner (+3 pts)')
+
+      // Check correct goal difference
+      const correctGD = predDiff === actualDiff
+      if (correctGD && (predWinner !== 'draw' || isExact)) {
+        pts += 2
+        breakDown.push('📊 Correct Goal Difference (+2 pts)')
+      }
+    }
+
+    // Check exact score
     if (isExact) {
       pts += 5
       breakDown.push('🎯 Exact Score Match (+5 pts)')
-    } else {
-      // Check correct outcome
-      const correctOutcome = predWinner === actualWinner
-      if (correctOutcome) {
-        pts += 3
-        breakDown.push('🏆 Correct Outcome/Winner (+3 pts)')
-
-        // Check correct goal difference (only relevant if not exact score)
-        const correctGD = predDiff === actualDiff
-        if (correctGD && predWinner !== 'draw') {
-          pts += 2
-          breakDown.push('📊 Correct Goal Difference (+2 pts)')
-        }
-      }
     }
 
     if (isKnockout && (actualWinner === 'draw' || isKnockout)) {
