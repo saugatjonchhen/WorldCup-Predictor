@@ -423,10 +423,17 @@ export default function Dashboard() {
                     <div className="flex items-center gap-2">
                       {isLocked ? (
                         /* Live or finished score / locked predictions */
-                        <div className="flex items-center gap-3 bg-surface-2 px-4 py-2.5 rounded-xl border border-border">
-                          <span className="text-xl font-black">{match.home_score ?? 0}</span>
-                          <span className="text-xs text-text-muted font-bold">:</span>
-                          <span className="text-xl font-black">{match.away_score ?? 0}</span>
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="flex items-center gap-3 bg-surface-2 px-4 py-2.5 rounded-xl border border-border">
+                            <span className="text-xl font-black">{match.home_score ?? '-'}</span>
+                            <span className="text-xs text-text-muted font-bold">:</span>
+                            <span className="text-xl font-black">{match.away_score ?? '-'}</span>
+                          </div>
+                          {isSaved && (
+                            <div className="text-[10px] font-bold text-brand bg-brand/10 px-2.5 py-0.5 rounded-md border border-brand/20">
+                              Pred: {savedPred?.home_score_pred} - {savedPred?.away_score_pred}
+                            </div>
+                          )}
                         </div>
                       ) : (
                         /* Interactive predictions */
@@ -472,7 +479,9 @@ export default function Dashboard() {
                   <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
                     <div className="text-[10px] font-semibold text-text-secondary">
                       {isLocked ? (
-                        <span className="text-live">🔒 Submissions Locked</span>
+                        <span className="text-live flex items-center gap-1">
+                          🔒 Submissions Locked
+                        </span>
                       ) : isSaved ? (
                         <span className="text-brand flex items-center gap-1">
                           ✓ Saved Pred: {savedPred?.home_score_pred} - {savedPred?.away_score_pred}
