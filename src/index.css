@@ -1,0 +1,534 @@
+@import "tailwindcss";
+
+/* ============================================================
+   World Cup 2026 Predictor — Design System
+   Premium dark theme with vibrant accents
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800;900&display=swap');
+
+@import "tw-animate-css";
+
+@import "shadcn/tailwind.css";
+
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* Color palette */
+  --color-background: #0a0b0f;
+  --color-surface: #111318;
+  --color-surface-2: #1a1d25;
+  --color-surface-3: #222633;
+  --color-border: #2a2d3a;
+  --color-border-subtle: #1e2130;
+
+  /* Brand green (football pitch) */
+  --color-brand: #00e676;
+  --color-brand-dim: #00c15e;
+  --color-brand-muted: rgba(0, 230, 118, 0.12);
+  --color-brand-glow: rgba(0, 230, 118, 0.25);
+
+  /* Accent gold (trophy) */
+  --color-gold: #ffd700;
+  --color-gold-dim: #e6c200;
+  --color-gold-muted: rgba(255, 215, 0, 0.12);
+
+  /* Accent blue (sky) */
+  --color-sky: #40c4ff;
+  --color-sky-muted: rgba(64, 196, 255, 0.12);
+
+  /* Accent coral (live / alert) */
+  --color-live: #ff5252;
+  --color-live-muted: rgba(255, 82, 82, 0.15);
+
+  /* Text */
+  --color-text-primary: #f0f2f8;
+  --color-text-secondary: #8b93a8;
+  --color-text-muted: #555e77;
+  --color-text-inverse: #0a0b0f;
+
+  /* Typography */
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-display: 'Outfit', 'Inter', sans-serif;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-brand: 0 0 24px rgba(0, 230, 118, 0.2);
+  --shadow-gold: 0 0 24px rgba(255, 215, 0, 0.2);
+}
+
+/* ============================================================
+   Base styles
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  min-height: 100dvh;
+}
+
+#root {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   Scrollbar styling
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ============================================================
+   Typography utilities
+   ============================================================ */
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-brand) 0%, var(--color-sky) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, var(--color-gold) 0%, #ff8c42 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================================
+   Card & surface utilities
+   ============================================================ */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.card-hover {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card-hover:hover {
+  border-color: rgba(0, 230, 118, 0.3);
+  box-shadow: var(--shadow-brand);
+  transform: translateY(-1px);
+}
+
+.glass {
+  background: rgba(17, 19, 24, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+}
+
+/* ============================================================
+   Button utilities
+   ============================================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--color-brand);
+  color: var(--color-text-inverse);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: var(--color-brand-dim);
+  box-shadow: var(--shadow-brand);
+  transform: translateY(-1px);
+}
+
+.btn-primary:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:not(:disabled):hover {
+  background: var(--color-surface-3);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.btn-ghost:not(:disabled):hover {
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--color-live);
+  border: 1px solid rgba(255, 82, 82, 0.3);
+}
+
+.btn-danger:not(:disabled):hover {
+  background: var(--color-live-muted);
+  border-color: var(--color-live);
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 13px;
+}
+
+.btn-lg {
+  padding: 14px 28px;
+  font-size: 16px;
+  border-radius: var(--radius-lg);
+}
+
+/* ============================================================
+   Input utilities
+   ============================================================ */
+
+.input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input:focus {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-muted);
+}
+
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-score {
+  width: 56px;
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font-display);
+}
+
+/* ============================================================
+   Badge utilities
+   ============================================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-live {
+  background: var(--color-live-muted);
+  color: var(--color-live);
+  border: 1px solid rgba(255, 82, 82, 0.3);
+  animation: pulse-live 2s ease-in-out infinite;
+}
+
+.badge-brand {
+  background: var(--color-brand-muted);
+  color: var(--color-brand);
+  border: 1px solid rgba(0, 230, 118, 0.25);
+}
+
+.badge-gold {
+  background: var(--color-gold-muted);
+  color: var(--color-gold);
+  border: 1px solid rgba(255, 215, 0, 0.25);
+}
+
+.badge-sky {
+  background: var(--color-sky-muted);
+  color: var(--color-sky);
+  border: 1px solid rgba(64, 196, 255, 0.25);
+}
+
+.badge-neutral {
+  background: var(--color-surface-3);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease forwards;
+}
+
+/* Skeleton loading */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-2) 25%,
+    var(--color-surface-3) 50%,
+    var(--color-surface-2) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ============================================================
+   Layout utilities
+   ============================================================ */
+
+.container-app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.divider {
+  height: 1px;
+  background: var(--color-border);
+}
+
+/* ============================================================
+   ShadCN UI CSS variable bridge — Always dark theme
+   ============================================================ */
+
+:root {
+  --background: oklch(0.09 0.005 260);
+  --foreground: oklch(0.94 0.01 260);
+  --card: oklch(0.11 0.005 260);
+  --card-foreground: oklch(0.94 0.01 260);
+  --popover: oklch(0.12 0.006 260);
+  --popover-foreground: oklch(0.94 0.01 260);
+  --primary: oklch(0.78 0.2 153);       /* #00e676 brand green */
+  --primary-foreground: oklch(0.09 0.005 260);
+  --secondary: oklch(0.16 0.006 260);
+  --secondary-foreground: oklch(0.94 0.01 260);
+  --muted: oklch(0.16 0.006 260);
+  --muted-foreground: oklch(0.58 0.01 260);
+  --accent: oklch(0.18 0.006 260);
+  --accent-foreground: oklch(0.94 0.01 260);
+  --destructive: oklch(0.65 0.22 25);   /* #ff5252 live red */
+  --destructive-foreground: oklch(0.94 0.01 260);
+  --border: oklch(0.2 0.008 260);
+  --input: oklch(0.16 0.006 260);
+  --ring: oklch(0.78 0.2 153);
+  --radius: 0.625rem;
+  --sidebar-background: oklch(0.11 0.005 260);
+  --sidebar-foreground: oklch(0.58 0.01 260);
+  --sidebar-primary: oklch(0.78 0.2 153);
+  --sidebar-primary-foreground: oklch(0.09 0.005 260);
+  --sidebar-accent: oklch(0.16 0.006 260);
+  --sidebar-accent-foreground: oklch(0.94 0.01 260);
+  --sidebar-border: oklch(0.2 0.008 260);
+  --sidebar-ring: oklch(0.78 0.2 153);
+  --sidebar: oklch(0.11 0.005 260);
+  --chart-1: oklch(0.78 0.2 153);
+  --chart-2: oklch(0.72 0.15 200);
+  --chart-3: oklch(0.82 0.18 85);
+  --chart-4: oklch(0.65 0.22 25);
+  --chart-5: oklch(0.58 0.01 260);
+}
+
+/* .dark mirrors :root since we're always dark */
+.dark {
+  --background: oklch(0.09 0.005 260);
+  --foreground: oklch(0.94 0.01 260);
+  --card: oklch(0.11 0.005 260);
+  --card-foreground: oklch(0.94 0.01 260);
+  --popover: oklch(0.12 0.006 260);
+  --popover-foreground: oklch(0.94 0.01 260);
+  --primary: oklch(0.78 0.2 153);
+  --primary-foreground: oklch(0.09 0.005 260);
+  --secondary: oklch(0.16 0.006 260);
+  --secondary-foreground: oklch(0.94 0.01 260);
+  --muted: oklch(0.16 0.006 260);
+  --muted-foreground: oklch(0.58 0.01 260);
+  --accent: oklch(0.18 0.006 260);
+  --accent-foreground: oklch(0.94 0.01 260);
+  --destructive: oklch(0.65 0.22 25);
+  --destructive-foreground: oklch(0.94 0.01 260);
+  --border: oklch(0.2 0.008 260);
+  --input: oklch(0.16 0.006 260);
+  --ring: oklch(0.78 0.2 153);
+  --sidebar: oklch(0.11 0.005 260);
+  --sidebar-foreground: oklch(0.58 0.01 260);
+  --sidebar-primary: oklch(0.78 0.2 153);
+  --sidebar-primary-foreground: oklch(0.09 0.005 260);
+  --sidebar-accent: oklch(0.16 0.006 260);
+  --sidebar-accent-foreground: oklch(0.94 0.01 260);
+  --sidebar-border: oklch(0.2 0.008 260);
+  --sidebar-ring: oklch(0.78 0.2 153);
+}
+
+@theme inline {
+  --font-heading: var(--font-display);
+  --font-sans: 'Inter', sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
