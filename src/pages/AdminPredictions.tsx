@@ -3,6 +3,8 @@ import { Layout } from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { UserPredictionsView } from '@/components/UserPredictionsView'
+import { syncLiveScores } from '@/lib/matchSync'
+import { toast } from 'sonner'
 
 interface Profile {
   id: string
@@ -19,6 +21,22 @@ export default function AdminPredictions() {
   const [userSearchQuery, setUserSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'user'>('all')
   const [userSortOrder, setUserSortOrder] = useState<'name_asc' | 'name_desc' | 'joined_newest' | 'joined_oldest'>('name_asc')
+  const [isSyncing, setIsSyncing] = useState(false)
+
+  const handleSyncLiveScores = async () => {
+    setIsSyncing(true)
+    const result = await syncLiveScores(supabase)
+    setIsSyncing(false)
+    if (result.success) {
+      if (result.updatedCount > 0) {
+        toast.success(`Successfully synced! Updated ${result.updatedCount} matches.`)
+      } else {
+        toast.success('Scores are already up to date.')
+      }
+    } else {
+      toast.error(`Failed to sync live scores: ${result.error}`)
+    }
+  }
 
   const { data: profiles = [], isLoading: isLoadingProfiles } = useQuery<Profile[]>({
     queryKey: ['admin-profiles'],
@@ -88,17 +106,36 @@ export default function AdminPredictions() {
               </p>
             </div>
             
-            <div className="flex items-center gap-4 bg-surface-2/60 backdrop-blur border border-border/60 px-4 py-3 rounded-2xl">
-              <div className="text-center">
-                <div className="text-lg font-black text-brand">{profiles.length}</div>
-                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Total Users</div>
-              </div>
-              <div className="h-8 w-px bg-border/80" />
-              <div className="text-center">
-                <div className="text-lg font-black text-emerald-500">
-                  {profiles.filter(p => p.role === 'admin').length}
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <button
+                onClick={handleSyncLiveScores}
+                disabled={isSyncing}
+                className="btn btn-primary text-xs px-4 py-2.5 font-bold shadow-brand flex items-center gap-2"
+              >
+                {isSyncing ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-transparent border-t-white rounded-full animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    🔄 Sync Live Scores
+                  </>
+                )}
+              </button>
+
+              <div className="flex items-center gap-4 bg-surface-2/60 backdrop-blur border border-border/60 px-4 py-3 rounded-2xl">
+                <div className="text-center">
+                  <div className="text-lg font-black text-brand">{profiles.length}</div>
+                  <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Total Users</div>
                 </div>
-                <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Admins</div>
+                <div className="h-8 w-px bg-border/80" />
+                <div className="text-center">
+                  <div className="text-lg font-black text-emerald-500">
+                    {profiles.filter(p => p.role === 'admin').length}
+                  </div>
+                  <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Admins</div>
+                </div>
               </div>
             </div>
           </div>

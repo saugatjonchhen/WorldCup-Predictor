@@ -86,14 +86,41 @@ export default function PoolDetail() {
     queryFn: async () => {
       if (!poolId) return []
 
-      const { data, error } = await supabase
-        .from('pool_leaderboard')
+      const { data: poolData, error: poolError } = await supabase
+        .from('leaderboard_pool')
         .select('*')
         .eq('pool_id', poolId)
-        .order('rank', { ascending: true })
+        .order('pool_rank', { ascending: true })
 
-      if (error) throw error
-      return data as MemberLeaderboardEntry[]
+      if (poolError) throw poolError
+      if (!poolData || poolData.length === 0) return []
+
+      const userIds = poolData.map((entry: any) => entry.user_id)
+      const { data: globalData, error: globalError } = await supabase
+        .from('leaderboard_global')
+        .select('user_id, exact_scores, correct_results')
+        .in('user_id', userIds)
+
+      const globalStatsMap = new Map<string, { exact_scores: number; correct_results: number }>()
+      if (!globalError && globalData) {
+        globalData.forEach((g: any) => {
+          globalStatsMap.set(g.user_id, {
+            exact_scores: g.exact_scores,
+            correct_results: g.correct_results
+          })
+        })
+      }
+
+      return poolData.map((entry: any) => ({
+        profile_id: entry.user_id,
+        username: entry.username,
+        display_name: entry.display_name,
+        avatar_url: entry.avatar_url,
+        total_points: entry.total_points,
+        correct_scores: globalStatsMap.get(entry.user_id)?.exact_scores ?? 0,
+        correct_outcomes: globalStatsMap.get(entry.user_id)?.correct_results ?? 0,
+        rank: entry.pool_rank
+      })) as MemberLeaderboardEntry[]
     },
     enabled: !!poolId,
   })

@@ -3,6 +3,7 @@ import { Layout } from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { syncLiveScores } from '@/lib/matchSync'
 
 interface Match {
   id: string
@@ -30,7 +31,7 @@ interface Prediction {
 }
 
 export default function Dashboard() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -56,6 +57,8 @@ export default function Dashboard() {
       supabase.removeChannel(channel)
     }
   }, [queryClient, user?.id])
+
+
 
   const [activeTab, setActiveTab] = useState<'all' | 'predicted' | 'pending'>('all')
   const [sortBy, setSortBy] = useState<'priority' | 'kickoff' | 'group' | 'status'>('kickoff')
@@ -138,6 +141,39 @@ export default function Dashboard() {
     },
     enabled: !!user?.id,
   })
+
+  // Background auto-sync for admin users
+  const isAdmin = profile?.role === 'admin'
+  useEffect(() => {
+    if (!isAdmin || matches.length === 0) return
+
+    // Check if there are active (kicked off) matches that are not completed
+    const hasActiveMatch = matches.some((match) => {
+      const kickoff = new Date(match.kickoff_time)
+      const hasKickedOff = kickoff < new Date()
+      return hasKickedOff && match.status !== 'completed'
+    })
+
+    if (!hasActiveMatch) return
+
+    // Sync immediately on load/mount
+    syncLiveScores(supabase).then((res) => {
+      if (res.success && res.updatedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['matches'] })
+      }
+    })
+
+    // Poll every 60 seconds if any match is active/uncompleted
+    const interval = setInterval(() => {
+      syncLiveScores(supabase).then((res) => {
+        if (res.success && res.updatedCount > 0) {
+          queryClient.invalidateQueries({ queryKey: ['matches'] })
+        }
+      })
+    }, 60000)
+
+    return () => clearInterval(interval)
+  }, [isAdmin, matches, queryClient])
 
   // Group predictions by match_id for instant lookup
   const predictionMap = new Map<string, Prediction>()
