@@ -4,6 +4,29 @@ import { supabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 
+interface Match {
+  id: string
+  external_match_id: string
+  home_team: string
+  away_team: string
+  home_team_ext_id: string
+  away_team_ext_id: string
+  kickoff_time: string
+  status: string
+  home_score: number | null
+  away_score: number | null
+  home_team_info?: { flag_url: string } | null
+  away_team_info?: { flag_url: string } | null
+}
+
+interface Prediction {
+  id: string
+  match_id: string
+  user_id: string
+  home_score_pred: number
+  away_score_pred: number
+}
+
 interface PoolDetailData {
   id: string
   name: string
@@ -105,6 +128,60 @@ export default function PoolDetail() {
     enabled: !!poolId,
   })
 
+  // 4. Fetch the most recently locked matches
+  const { data: recentMatches = [], isLoading: isLoadingRecentMatches } = useQuery<Match[]>({
+    queryKey: ['recent-locked-matches'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('matches')
+        .select(`
+          *,
+          home_team_info:teams!home_team_ext_id(flag_url),
+          away_team_info:teams!away_team_ext_id(flag_url)
+        `)
+
+      if (error) throw error
+
+      const matches = data as unknown as Match[]
+      const now = new Date().getTime()
+      
+      const lockedMatches = matches.filter(match => {
+        const kickoffDate = new Date(match.kickoff_time).getTime()
+        const deadline = kickoffDate - 2 * 60 * 60 * 1000
+        return now > deadline || match.status === 'live' || match.status === 'completed'
+      })
+      
+      if (lockedMatches.length === 0) return []
+      
+      lockedMatches.sort((a, b) => new Date(b.kickoff_time).getTime() - new Date(a.kickoff_time).getTime())
+      
+      const mostRecentKickoff = lockedMatches[0].kickoff_time
+      
+      return lockedMatches.filter(match => match.kickoff_time === mostRecentKickoff)
+    }
+  })
+
+  // 5. Fetch predictions for these recent matches for pool members
+  const { data: recentPredictions = [], isLoading: isLoadingRecentPreds } = useQuery<Prediction[]>({
+    queryKey: ['pool-recent-predictions', poolId, recentMatches.map(m => m.id).join(',')],
+    queryFn: async () => {
+      if (recentMatches.length === 0 || members.length === 0) return []
+      
+      const matchIds = recentMatches.map(m => m.id)
+      const userIds = members.map(m => m.user_id)
+      
+      const { data, error } = await supabase
+        .from('predictions')
+        .select('*')
+        .in('match_id', matchIds)
+        .in('user_id', userIds)
+        
+      if (error) throw error
+      return data as Prediction[]
+    },
+    enabled: recentMatches.length > 0 && members.length > 0
+  })
+
   const handleRemoveMember = async (memberId: string, memberUsername: string) => {
     if (!window.confirm(`Are you sure you want to remove @${memberUsername} from this pool?`)) {
       return
@@ -129,7 +206,79 @@ export default function PoolDetail() {
   const currentMember = members.find(m => m.user_id === user?.id)
   const isCurrentUserAdmin = currentMember?.role === 'admin' || pool?.created_by === user?.id
 
-  const isLoading = isLoadingPool || isLoadingStandings || isLoadingMembers
+  const isLoading = isLoadingPool || isLoadingStandings || isLoadingMembers || isLoadingRecentMatches || isLoadingRecentPreds
+
+  const renderMatchCard = (match: Match) => (
+    <div key={match.id} className="glass rounded-xl border border-border overflow-hidden p-5 flex flex-col gap-4">
+       {/* Match header */}
+       <div className="flex items-center justify-between border-b border-border/40 pb-3">
+         <div className="flex items-center gap-3">
+           <div className="flex flex-col items-center gap-1">
+             <img src={match.home_team_info?.flag_url || 'https://flagcdn.com/w80/un.png'} alt={match.home_team} className="w-8 h-5 object-cover rounded border border-border/40" />
+             <span className="text-[10px] font-bold tracking-tight w-12 text-center truncate">{match.home_team}</span>
+           </div>
+           
+           <div className="flex flex-col items-center justify-center">
+             {match.status === 'scheduled' ? (
+               <span className="text-xs font-black text-text-muted">VS</span>
+             ) : (
+               <div className="flex items-center gap-1.5 bg-surface-2 px-2 py-1 rounded-md border border-border text-sm font-black">
+                 <span>{match.home_score ?? '-'}</span>
+                 <span className="text-[10px] text-text-muted">:</span>
+                 <span>{match.away_score ?? '-'}</span>
+               </div>
+             )}
+           </div>
+
+           <div className="flex flex-col items-center gap-1">
+             <img src={match.away_team_info?.flag_url || 'https://flagcdn.com/w80/un.png'} alt={match.away_team} className="w-8 h-5 object-cover rounded border border-border/40" />
+             <span className="text-[10px] font-bold tracking-tight w-12 text-center truncate">{match.away_team}</span>
+           </div>
+         </div>
+         <div className="flex flex-col items-end gap-1">
+           {match.status === 'live' ? (
+              <span className="text-[10px] bg-live-muted text-live font-bold px-1.5 py-0.5 rounded animate-pulse">LIVE</span>
+           ) : match.status === 'completed' ? (
+              <span className="text-[10px] bg-surface-3 text-text-secondary font-bold px-1.5 py-0.5 rounded">FINAL</span>
+           ) : (
+              <span className="text-[10px] bg-surface-3 text-text-muted font-bold px-1.5 py-0.5 rounded">LOCKED</span>
+           )}
+         </div>
+       </div>
+       
+       {/* Predictions List */}
+       <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+         {members.map(member => {
+           const pred = recentPredictions.find(p => p.match_id === match.id && p.user_id === member.user_id)
+           const profile = member.profiles
+           const displayName = profile?.display_name || profile?.username || 'Unknown User'
+           return (
+             <div key={member.id} className="flex items-center justify-between text-sm py-1.5 border-b border-border/20 last:border-0 hover:bg-surface-2/30 rounded px-2 -mx-2 transition-colors">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-surface-3 overflow-hidden flex items-center justify-center text-[10px] font-bold text-gradient border border-border/50">
+                    {profile?.avatar_url ? <img src={profile.avatar_url} className="w-full h-full object-cover" /> : displayName.charAt(0)}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-text-primary">{displayName}</span>
+                  </div>
+                </div>
+                <div className="font-mono font-bold text-sm">
+                  {pred ? (
+                    <div className="flex items-center gap-1.5 bg-surface-2 px-2 py-0.5 rounded border border-border/50 text-brand">
+                      <span>{pred.home_score_pred}</span>
+                      <span className="text-[10px] text-text-muted">-</span>
+                      <span>{pred.away_score_pred}</span>
+                    </div>
+                  ) : (
+                    <span className="text-text-muted text-[10px] italic bg-surface-2 px-2 py-1 rounded border border-border/30">No pred</span>
+                  )}
+                </div>
+             </div>
+           )
+         })}
+       </div>
+    </div>
+  )
 
   return (
     <Layout>
@@ -183,6 +332,17 @@ export default function PoolDetail() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {recentMatches.length > 1 && (
+                <div className="lg:col-span-3 space-y-4">
+                  <h2 className="text-xl font-bold font-display flex items-center gap-2">
+                    <span>🎯</span> Live/Recent Match Predictions
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {recentMatches.map(renderMatchCard)}
+                  </div>
+                </div>
+              )}
+
               {/* Pool Leaderboard Standings (col-span-2) */}
               <div className="lg:col-span-2 space-y-4">
                 <h2 className="text-xl font-bold font-display flex items-center gap-2">
@@ -268,11 +428,21 @@ export default function PoolDetail() {
                 </div>
               </div>
 
-              {/* Pool Members List (col-span-1) */}
-              <div className="space-y-4">
-                <h2 className="text-xl font-bold font-display flex items-center gap-2">
-                  <span>👥</span> Pool Members ({members.length})
-                </h2>
+              {/* Right Column: Pool Members & Single Match Prediction (col-span-1) */}
+              <div className="space-y-8 lg:col-span-1">
+                {recentMatches.length === 1 && (
+                  <div className="space-y-4">
+                    <h2 className="text-xl font-bold font-display flex items-center gap-2">
+                      <span>🎯</span> Live Prediction
+                    </h2>
+                    {renderMatchCard(recentMatches[0])}
+                  </div>
+                )}
+                
+                <div className="space-y-4">
+                  <h2 className="text-xl font-bold font-display flex items-center gap-2">
+                    <span>👥</span> Pool Members ({members.length})
+                  </h2>
 
                 <div className="glass p-4 rounded-xl border border-border/80 divide-y divide-border/40 max-h-[500px] overflow-y-auto">
                   {members.map((member) => {
@@ -334,6 +504,7 @@ export default function PoolDetail() {
               </div>
             </div>
           </div>
+        </div>
         )}
       </div>
     </Layout>
