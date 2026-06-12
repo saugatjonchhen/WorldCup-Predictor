@@ -16,6 +16,17 @@ interface Profile {
   created_at: string
 }
 
+interface Match {
+  id: string
+  kickoff_time: string
+  status: string
+}
+
+interface PredictionInfo {
+  user_id: string
+  match_id: string
+}
+
 export default function AdminPredictions() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [userSearchQuery, setUserSearchQuery] = useState('')
@@ -50,6 +61,63 @@ export default function AdminPredictions() {
       return data as Profile[]
     },
   })
+
+  const { data: matches = [] } = useQuery<Match[]>({
+    queryKey: ['admin-matches'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('matches')
+        .select('id, kickoff_time, status')
+      if (error) throw error
+      return data as Match[]
+    },
+  })
+
+  const { data: predictions = [] } = useQuery<PredictionInfo[]>({
+    queryKey: ['admin-predictions-summary'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('predictions')
+        .select('user_id, match_id')
+      if (error) throw error
+      return data as PredictionInfo[]
+    },
+  })
+
+  const unpredictedCounts = (() => {
+    const now = new Date().getTime()
+    const urgentMatches = matches.filter((m) => {
+      const kickoff = new Date(m.kickoff_time).getTime()
+      const diff = kickoff - now
+      return m.status === 'scheduled' && diff > 0 && diff < 24 * 60 * 60 * 1000
+    })
+
+    if (urgentMatches.length === 0) return {} as { [userId: string]: number }
+
+    const userPredictionsMap: { [userId: string]: Set<string> } = {}
+    predictions.forEach((p) => {
+      if (!userPredictionsMap[p.user_id]) {
+        userPredictionsMap[p.user_id] = new Set()
+      }
+      userPredictionsMap[p.user_id].add(p.match_id)
+    })
+
+    const counts: { [userId: string]: number } = {}
+    profiles.forEach((p) => {
+      const userPreds = userPredictionsMap[p.id] || new Set()
+      let unpredictedCount = 0
+      urgentMatches.forEach((m) => {
+        if (!userPreds.has(m.id)) {
+          unpredictedCount++
+        }
+      })
+      if (unpredictedCount > 0) {
+        counts[p.id] = unpredictedCount
+      }
+    })
+
+    return counts
+  })()
 
   const filteredProfiles = profiles
     .filter((p) => {
@@ -256,13 +324,27 @@ export default function AdminPredictions() {
                           </div>
                         </div>
 
-                        {p.country && (
-                          <span className={`text-[10px] shrink-0 font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                            isSelected ? 'bg-white/10 text-white/90' : 'bg-surface-3/80 text-text-secondary border border-border/40'
-                          }`}>
-                            {p.country}
-                          </span>
-                        )}
+                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                          {p.country && (
+                            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
+                              isSelected ? 'bg-white/10 text-white/90' : 'bg-surface-3/80 text-text-secondary border border-border/40'
+                            }`}>
+                              {p.country}
+                            </span>
+                          )}
+                          {(unpredictedCounts[p.id] || 0) > 0 && (
+                            <span 
+                              title={`${unpredictedCounts[p.id]} games starting in < 24h unpredicted`}
+                              className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 ${
+                                isSelected 
+                                  ? 'bg-white text-live font-black shadow-sm' 
+                                  : 'bg-live-muted text-live border border-live/35 animate-pulse'
+                              }`}
+                            >
+                              ⏳ {unpredictedCounts[p.id]}
+                            </span>
+                          )}
+                        </div>
                       </button>
                     )
                   })
