@@ -307,13 +307,15 @@ export default function PoolDetail() {
     }
   })
 
-  // Filter matches to find locked ones
+  // Filter matches to find locked ones, sorted latest kickoff first
   const now = new Date().getTime()
-  const lockedMatches = allMatches.filter(match => {
-    const kickoffDate = new Date(match.kickoff_time).getTime()
-    const deadline = kickoffDate - 2 * 60 * 60 * 1000
-    return now > deadline || match.status === 'live' || match.status === 'completed'
-  })
+  const lockedMatches = allMatches
+    .filter(match => {
+      const kickoffDate = new Date(match.kickoff_time).getTime()
+      const deadline = kickoffDate - 2 * 60 * 60 * 1000
+      return now > deadline || match.status === 'live' || match.status === 'completed'
+    })
+    .sort((a, b) => new Date(b.kickoff_time).getTime() - new Date(a.kickoff_time).getTime())
 
   const selectedMatch = lockedMatches.find(m => m.id === selectedMatchId)
 
