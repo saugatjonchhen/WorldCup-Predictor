@@ -206,7 +206,7 @@ export default function Rules() {
                 </div>
                 <div className="bg-surface-2 p-3.5 rounded-xl border border-border flex justify-between items-center sm:col-span-2">
                   <span className="font-semibold text-text-primary">Tournament Champion</span>
-                  <span className="font-bold text-gold bg-gold-muted px-2.5 py-0.5 rounded">20 pts for correct champion</span>
+                  <span className="font-bold text-stats-score bg-gold-muted px-2.5 py-0.5 rounded">20 pts for correct champion</span>
                 </div>
               </div>
             </div>

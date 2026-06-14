@@ -290,7 +290,7 @@ export default function AdminPredictions() {
                         onClick={() => setSelectedUserId(p.id)}
                         className={`flex shrink-0 items-center gap-4 px-5 h-20 rounded-2xl border text-left transition-all w-full relative overflow-hidden group ${
                           isSelected
-                            ? 'bg-brand border-brand border-l-4 border-l-white text-text-inverse shadow-brand/35 shadow-lg scale-[1.01]'
+                            ? 'bg-brand border-brand border-l-4 border-l-text-inverse text-text-inverse shadow-brand/35 shadow-lg scale-[1.01]'
                             : 'bg-surface-2/30 border-border/80 border-l-4 border-l-transparent text-text-secondary hover:text-text-primary hover:bg-surface-3/50 hover:border-border-hover'
                         }`}
                       >
@@ -306,17 +306,17 @@ export default function AdminPredictions() {
                           <div className={`font-bold text-sm truncate ${isSelected ? 'text-text-inverse' : 'text-text-primary'}`}>
                             {p.display_name || p.username || 'User'}
                           </div>
-                          <div className={`text-xs truncate ${isSelected ? 'text-white/80' : 'text-text-muted'} flex items-center gap-2 mt-1`}>
+                          <div className={`text-xs truncate ${isSelected ? 'opacity-80' : 'text-text-muted'} flex items-center gap-2 mt-1`}>
                             <span>@{p.username || 'username'}</span>
                             {p.role === 'admin' ? (
                               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                                isSelected ? 'bg-white/20 text-white' : 'bg-brand-muted text-brand'
+                                isSelected ? 'bg-text-inverse/20 text-text-inverse' : 'bg-brand-muted text-brand'
                               }`}>
                                 Admin
                               </span>
                             ) : (
                               <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                                isSelected ? 'bg-white/15 text-white/90 border border-white/10' : 'bg-surface-3 text-text-muted border border-border/60'
+                                isSelected ? 'bg-text-inverse/15 text-text-inverse/90 border border-text-inverse/10' : 'bg-surface-3 text-text-muted border border-border/60'
                               }`}>
                                 User
                               </span>
@@ -327,7 +327,7 @@ export default function AdminPredictions() {
                         <div className="flex flex-col items-end gap-1.5 shrink-0">
                           {p.country && (
                             <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${
-                              isSelected ? 'bg-white/10 text-white/90' : 'bg-surface-3/80 text-text-secondary border border-border/40'
+                              isSelected ? 'bg-text-inverse/10 text-text-inverse/90' : 'bg-surface-3/80 text-text-secondary border border-border/40'
                             }`}>
                               {p.country}
                             </span>
@@ -337,7 +337,7 @@ export default function AdminPredictions() {
                               title={`${unpredictedCounts[p.id]} games starting in < 24h unpredicted`}
                               className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider flex items-center gap-1 ${
                                 isSelected 
-                                  ? 'bg-white text-live font-black shadow-sm' 
+                                  ? 'bg-text-inverse text-brand font-black shadow-sm' 
                                   : 'bg-live-muted text-live border border-live/35 animate-pulse'
                               }`}
                             >

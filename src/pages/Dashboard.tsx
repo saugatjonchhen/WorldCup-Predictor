@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { syncLiveScores } from '@/lib/matchSync'
+import { WorldCupFactsWidget } from '@/components/WorldCupFactsWidget'
+import footballImg from '@/assets/football.png'
 
 interface Match {
   id: string
@@ -324,15 +326,8 @@ export default function Dashboard() {
     <Layout>
       <div className="space-y-8">
         {/* Header section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-extrabold font-display text-gradient">
-              Dashboard
-            </h1>
-            <p className="text-text-secondary text-sm">
-              Keep track of matches and manage your predictions before kickoff!
-            </p>
-          </div>
+        <div className="w-full">
+          <WorldCupFactsWidget />
         </div>
 
         {/* Filters and Sorting Toolbar */}
@@ -374,8 +369,8 @@ export default function Dashboard() {
             <div className="w-10 h-10 border-2 border-transparent border-t-brand rounded-full animate-spin" />
           </div>
         ) : sortedMatches.length === 0 ? (
-          <div className="glass p-12 rounded-xl text-center border border-border/80 max-w-md mx-auto">
-            <span className="text-4xl">⚽</span>
+          <div className="glass p-12 rounded-xl text-center border border-border/80 max-w-md mx-auto flex flex-col items-center">
+            <img src={footballImg} alt="Football" className="w-16 h-16 object-contain opacity-50 drop-shadow-lg" />
             <h3 className="mt-4 font-display font-bold text-lg text-text-primary">
               No Matches Found
             </h3>
@@ -515,7 +510,7 @@ export default function Dashboard() {
                   <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
                     <div className="text-[10px] font-semibold text-text-secondary">
                       {isLocked ? (
-                        <span className="text-live flex items-center gap-1">
+                        <span className="text-text-muted flex items-center gap-1">
                           🔒 Submissions Locked
                         </span>
                       ) : isSaved ? (

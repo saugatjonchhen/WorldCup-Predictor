@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useQuery } from '@tanstack/react-query'
+import footballImg from '@/assets/football.png'
 
 interface TeamInfo {
   flag_url: string
@@ -384,8 +385,8 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
               <div className="w-10 h-10 border-2 border-transparent border-t-brand rounded-full animate-spin" />
             </div>
           ) : filteredPredictions.length === 0 ? (
-            <div className="glass p-12 rounded-xl text-center border border-border/80 max-w-md mx-auto">
-              <span className="text-3xl">⚽</span>
+            <div className="flex flex-col items-center justify-center p-12 text-center bg-surface-2/40 rounded-xl border border-border/60">
+              <img src={footballImg} alt="Football" className="w-12 h-12 object-contain opacity-50 drop-shadow-lg mb-2" />
               <h3 className="mt-4 font-display font-bold text-base text-text-primary">
                 No Predictions Found
               </h3>
