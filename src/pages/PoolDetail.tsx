@@ -307,13 +307,15 @@ export default function PoolDetail() {
     }
   })
 
-  // Filter matches to find locked ones
+  // Filter matches to find locked ones, sorted latest kickoff first
   const now = new Date().getTime()
-  const lockedMatches = allMatches.filter(match => {
-    const kickoffDate = new Date(match.kickoff_time).getTime()
-    const deadline = kickoffDate - 2 * 60 * 60 * 1000
-    return now > deadline || match.status === 'live' || match.status === 'completed'
-  })
+  const lockedMatches = allMatches
+    .filter(match => {
+      const kickoffDate = new Date(match.kickoff_time).getTime()
+      const deadline = kickoffDate - 2 * 60 * 60 * 1000
+      return now > deadline || match.status === 'live' || match.status === 'completed'
+    })
+    .sort((a, b) => new Date(b.kickoff_time).getTime() - new Date(a.kickoff_time).getTime())
 
   const selectedMatch = lockedMatches.find(m => m.id === selectedMatchId)
 
@@ -1419,13 +1421,13 @@ export default function PoolDetail() {
                     onClick={() => setModalTab('outcomes')}
                     className={`bg-surface-2 border p-3 rounded-xl flex flex-col items-center justify-center gap-1 text-center shadow-sm transition-all cursor-pointer ${
                       modalTab === 'outcomes'
-                        ? 'border-sky ring-1 ring-sky/30 bg-surface-3'
+                        ? 'border-stats-outcome ring-1 ring-stats-outcome/30 bg-surface-3'
                         : 'border-border hover:border-border/80'
                     }`}
                   >
                     <span className="text-xl">🏆</span>
                     <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Correct Outcomes</span>
-                    <span className="text-2xl font-black text-sky font-display mt-0.5">
+                    <span className="text-2xl font-black text-stats-outcome font-display mt-0.5">
                       {selectedUserEntry.correct_outcomes}
                     </span>
                     <span className="text-[9px] text-text-muted">(Correct W/D)</span>
@@ -1435,13 +1437,13 @@ export default function PoolDetail() {
                     onClick={() => setModalTab('scores')}
                     className={`bg-surface-2 border p-3 rounded-xl flex flex-col items-center justify-center gap-1 text-center shadow-sm transition-all cursor-pointer ${
                       modalTab === 'scores'
-                        ? 'border-gold ring-1 ring-gold/30 bg-surface-3'
+                        ? 'border-stats-score ring-1 ring-stats-score/30 bg-surface-3'
                         : 'border-border hover:border-border/80'
                     }`}
                   >
                     <span className="text-xl">🎯</span>
                     <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Correct Scores</span>
-                    <span className="text-2xl font-black text-gold font-display mt-0.5">
+                    <span className="text-2xl font-black text-stats-score font-display mt-0.5">
                       {selectedUserEntry.correct_scores}
                     </span>
                     <span className="text-[9px] text-text-muted">(Exact Score)</span>

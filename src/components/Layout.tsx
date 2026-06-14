@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/contexts/ThemeContext'
+import footballImg from '@/assets/football.png'
 
 interface LayoutProps {
   children: ReactNode
@@ -8,6 +10,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { user, profile, signOut } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
   const [isMoreOpen, setIsMoreOpen] = useState(false)
@@ -22,6 +25,7 @@ export function Layout({ children }: LayoutProps) {
     { label: 'Dashboard', path: '/dashboard', icon: '📊' },
     { label: 'Bracket', path: '/bracket', icon: '🔮' },
     { label: 'Pools', path: '/pools', icon: '🤝' },
+    // { label: 'Insights', path: '/insights', icon: '📈' },
     { label: 'Rules', path: '/rules', icon: '📜' },
     { label: 'Profile', path: '/profile', icon: '👤' },
     ...(profile?.role === 'admin'
@@ -37,11 +41,12 @@ export function Layout({ children }: LayoutProps) {
     { label: 'Dashboard', path: '/dashboard', icon: '📊' },
     { label: 'Bracket', path: '/bracket', icon: '🔮' },
     { label: 'Pools', path: '/pools', icon: '🤝' },
-    { label: 'Profile', path: '/profile', icon: '👤' },
+    // { label: 'Insights', path: '/insights', icon: '📈' },
   ]
 
   // Secondary/More items for the bottom drawer
   const mobileMoreItems = [
+    { label: 'Profile', path: '/profile', icon: '👤' },
     { label: 'Rules', path: '/rules', icon: '📜' },
     ...(profile?.role === 'admin'
       ? [
@@ -59,7 +64,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Top Navbar */}
       <nav className="glass border-b border-border/60 sticky top-0 z-40 px-6 py-4 flex items-center justify-between">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <span className="text-2xl">🏆</span>
+          <img src={footballImg} alt="WeAre26" className="w-8 h-8 object-contain drop-shadow-md" />
           <span className="font-display font-black text-lg tracking-tight text-gradient">
             WC26 Predictor
           </span>
@@ -88,6 +93,13 @@ export function Layout({ children }: LayoutProps) {
 
         {/* User profile dropdown / signout action */}
         <div className="flex items-center gap-3">
+          <button 
+            onClick={toggleTheme} 
+            className="w-10 h-10 rounded-full border border-border bg-surface-2 flex items-center justify-center hover:border-brand transition-colors text-lg"
+            title="Toggle Theme"
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
           <div className="hidden sm:flex flex-col items-end text-right">
             <span className="text-sm font-bold">
               {profile?.display_name || profile?.username || user?.email?.split('@')[0]}
@@ -193,6 +205,15 @@ export function Layout({ children }: LayoutProps) {
             </div>
 
             <hr className="border-border my-2" />
+
+            {/* Theme Toggle Mobile */}
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-surface-3 border border-border font-bold hover:text-brand transition-colors"
+            >
+              <span className="text-xl">{theme === 'dark' ? '☀️' : '🌙'}</span>
+              <span>Switch to {theme === 'dark' ? 'Light' : 'Dark'} Mode</span>
+            </button>
 
             {/* Logout action in Mobile menu */}
             <button
