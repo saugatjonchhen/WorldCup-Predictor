@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/AuthContext'
 import {
   Dialog,
@@ -66,6 +66,12 @@ interface PoolDetailData {
   description: string | null
   invite_code: string
   created_by: string
+  prizes?: {
+    first: string
+    second: string
+    third: string
+    additional?: string[]
+  } | null
 }
 
 interface MemberLeaderboardEntry {
@@ -96,12 +102,22 @@ interface PoolMember {
 export default function PoolDetail() {
   const { poolId } = useParams<{ poolId: string }>()
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'predictions'>('leaderboard')
+  const [activeTab, setActiveTab] = useState<'leaderboard' | 'predictions' | 'prizes'>('leaderboard')
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
   const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null)
   const [selectedUserEntry, setSelectedUserEntry] = useState<MemberLeaderboardEntry | null>(null)
   const [modalTab, setModalTab] = useState<'outcomes' | 'scores'>('outcomes')
+
+  // Prizes states
+  const [isEditingPrizes, setIsEditingPrizes] = useState(false)
+  const [firstPrize, setFirstPrize] = useState('')
+  const [secondPrize, setSecondPrize] = useState('')
+  const [thirdPrize, setThirdPrize] = useState('')
+  const [additionalPrizes, setAdditionalPrizes] = useState<string[]>([])
+  const [isSavingPrizes, setIsSavingPrizes] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!selectedUserEntry) {
@@ -128,8 +144,21 @@ export default function PoolDetail() {
       if (error) throw error
       return data
     },
-    enabled: !!poolId,
   })
+
+  useEffect(() => {
+    if (pool?.prizes) {
+      setFirstPrize(pool.prizes.first || '')
+      setSecondPrize(pool.prizes.second || '')
+      setThirdPrize(pool.prizes.third || '')
+      setAdditionalPrizes(pool.prizes.additional || [])
+    } else {
+      setFirstPrize('')
+      setSecondPrize('')
+      setThirdPrize('')
+      setAdditionalPrizes([])
+    }
+  }, [pool])
 
   // 2. Fetch leaderboard for this specific pool
   const { data: standings = [], isLoading: isLoadingStandings } = useQuery<MemberLeaderboardEntry[]>({
@@ -399,6 +428,50 @@ export default function PoolDetail() {
     }
   }
 
+  const handleSavePrizes = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!poolId) return
+    setIsSavingPrizes(true)
+    setSaveError(null)
+
+    try {
+      const { error } = await supabase
+        .from('pools')
+        .update({
+          prizes: {
+            first: firstPrize.trim(),
+            second: secondPrize.trim(),
+            third: thirdPrize.trim(),
+            additional: additionalPrizes.map(p => p.trim()).filter(Boolean)
+          }
+        })
+        .eq('id', poolId)
+
+      if (error) throw error
+      setIsEditingPrizes(false)
+      queryClient.invalidateQueries({ queryKey: ['pool', poolId] })
+    } catch (err: any) {
+      console.error('Error updating prizes:', err)
+      setSaveError(err.message || 'Failed to update prizes.')
+    } finally {
+      setIsSavingPrizes(false)
+    }
+  }
+
+  const handleAddAdditionalPrize = () => {
+    setAdditionalPrizes([...additionalPrizes, ''])
+  }
+
+  const handleRemoveAdditionalPrize = (index: number) => {
+    setAdditionalPrizes(additionalPrizes.filter((_, i) => i !== index))
+  }
+
+  const handleAdditionalPrizeChange = (index: number, value: string) => {
+    const updated = [...additionalPrizes]
+    updated[index] = value
+    setAdditionalPrizes(updated)
+  }
+
   const currentMember = members.find(m => m.user_id === user?.id)
   const isCurrentUserAdmin = currentMember?.role === 'admin' || pool?.created_by === user?.id
 
@@ -586,7 +659,7 @@ export default function PoolDetail() {
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex items-center gap-1.5 bg-surface-2/40 p-1 border border-border/80 rounded-xl max-w-xs">
+            <div className="flex items-center gap-1.5 bg-surface-2/40 p-1 border border-border/80 rounded-xl max-w-md">
               <button
                 onClick={() => setActiveTab('leaderboard')}
                 className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
@@ -606,6 +679,16 @@ export default function PoolDetail() {
                 }`}
               >
                 📅 Predictions
+              </button>
+              <button
+                onClick={() => setActiveTab('prizes')}
+                className={`flex-1 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+                  activeTab === 'prizes'
+                    ? 'bg-brand text-text-inverse shadow-brand'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                🎁 Prizes
               </button>
             </div>
 
@@ -787,7 +870,7 @@ export default function PoolDetail() {
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : activeTab === 'predictions' ? (
               // Predictions tab
               <div className="glass p-6 rounded-2xl border border-border/80 space-y-6">
                 <div className="border-b border-border/40 pb-4">
@@ -1037,6 +1120,264 @@ export default function PoolDetail() {
                         )}
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Prizes tab
+              <div className="glass p-6 sm:p-8 rounded-2xl border border-border/80 space-y-6 animate-fade-in">
+                <div className="flex items-center justify-between border-b border-border/40 pb-4">
+                  <div>
+                    <h2 className="text-xl font-bold font-display flex items-center gap-2">
+                      <span>🎁</span> Pool Prizes
+                    </h2>
+                    <p className="text-text-secondary text-xs mt-1">
+                      Configure or view the rewards for the top prediction performers in this league.
+                    </p>
+                  </div>
+                  {isCurrentUserAdmin && (
+                    <button
+                      onClick={() => {
+                        setIsEditingPrizes(!isEditingPrizes)
+                        if (pool?.prizes) {
+                          setFirstPrize(pool.prizes.first || '')
+                          setSecondPrize(pool.prizes.second || '')
+                          setThirdPrize(pool.prizes.third || '')
+                          setAdditionalPrizes(pool.prizes.additional || [])
+                        }
+                      }}
+                      className="btn btn-secondary btn-xs py-1.5 px-3 font-bold text-xs"
+                    >
+                      {isEditingPrizes ? 'Cancel Setup' : 'Edit Setup'}
+                    </button>
+                  )}
+                </div>
+
+                {isEditingPrizes && isCurrentUserAdmin ? (
+                  <form onSubmit={handleSavePrizes} className="space-y-6">
+                    {saveError && (
+                      <div className="p-3 text-xs rounded bg-live-muted border border-live text-live">
+                        {saveError}
+                      </div>
+                    )}
+
+                    <div className="space-y-4">
+                      <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                        Mandatory Top 3 Prizes
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-text-secondary mb-1 flex items-center gap-1">
+                            🥇 1st Prize <span className="text-live">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={firstPrize}
+                            onChange={(e) => setFirstPrize(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-sm placeholder:text-text-muted text-text-primary focus:border-brand focus:outline-none"
+                            placeholder="E.g. $100 Cash / Gold Medal"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-text-secondary mb-1 flex items-center gap-1">
+                            🥈 2nd Prize <span className="text-live">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={secondPrize}
+                            onChange={(e) => setSecondPrize(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-sm placeholder:text-text-muted text-text-primary focus:border-brand focus:outline-none"
+                            placeholder="E.g. $50 Cash / Silver Medal"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-text-secondary mb-1 flex items-center gap-1">
+                            🥉 3rd Prize <span className="text-live">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={thirdPrize}
+                            onChange={(e) => setThirdPrize(e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg bg-surface-2 border border-border text-sm placeholder:text-text-muted text-text-primary focus:border-brand focus:outline-none"
+                            placeholder="E.g. $25 Cash / Bronze Medal"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 border-t border-border/40 pt-6">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">
+                          Additional Prizes (Optional)
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={handleAddAdditionalPrize}
+                          className="text-xs text-brand hover:underline font-bold"
+                        >
+                          + Add Prize
+                        </button>
+                      </div>
+
+                      {additionalPrizes.length === 0 ? (
+                        <p className="text-xs text-text-muted italic">
+                          No additional prizes added. Click "+ Add Prize" to add customizable rewards below the top 3.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {additionalPrizes.map((prize, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-text-muted w-8 text-right">
+                                {idx + 4}th:
+                              </span>
+                              <input
+                                type="text"
+                                required
+                                value={prize}
+                                onChange={(e) => handleAdditionalPrizeChange(idx, e.target.value)}
+                                className="flex-1 px-3 py-2 rounded-lg bg-surface-2 border border-border text-sm placeholder:text-text-muted text-text-primary focus:border-brand focus:outline-none"
+                                placeholder={`E.g. Custom consolation prize or ${idx + 4}th place reward`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAdditionalPrize(idx)}
+                                className="p-2 text-live hover:bg-live-muted/10 rounded transition-colors"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3 border-t border-border/40 pt-6">
+                      <button
+                        type="submit"
+                        disabled={isSavingPrizes}
+                        className="btn btn-primary py-2 px-5 font-bold text-xs"
+                      >
+                        {isSavingPrizes ? 'Saving...' : 'Save Prizes Setup'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsEditingPrizes(false)}
+                        className="btn btn-secondary py-2 px-5 font-bold text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="space-y-8">
+                    {!pool.prizes || (!pool.prizes.first && !pool.prizes.second && !pool.prizes.third) ? (
+                      <div className="text-center py-12 glass border border-border/40 rounded-xl">
+                        <span className="text-4xl block mb-3">🎁</span>
+                        <h3 className="font-display font-bold text-base text-text-primary">No Prizes Setup Yet</h3>
+                        <p className="text-xs text-text-secondary mt-1 max-w-sm mx-auto">
+                          The administrator has not configured the rewards for this prediction pool yet.
+                        </p>
+                        {isCurrentUserAdmin && (
+                          <button
+                            onClick={() => setIsEditingPrizes(true)}
+                            className="mt-5 btn btn-primary py-2 px-4 font-bold text-xs"
+                          >
+                            Set Up Prizes Now
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {/* 1st Place Card */}
+                          <div className="glass p-6 rounded-2xl border border-yellow-500/20 bg-gradient-to-br from-yellow-500/5 to-transparent relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+                            <div className="absolute top-2 right-2 text-4xl opacity-10 font-bold select-none font-display">1st</div>
+                            <div>
+                              <div className="w-10 h-10 rounded-full bg-yellow-500/10 flex items-center justify-center text-xl mb-4 border border-yellow-500/20">
+                                🥇
+                              </div>
+                              <h3 className="font-bold text-text-primary text-sm uppercase tracking-wider text-yellow-500">
+                                Champion
+                              </h3>
+                              <p className="mt-2 text-text-secondary text-base font-semibold leading-relaxed">
+                                {pool.prizes.first}
+                              </p>
+                            </div>
+                            <div className="mt-6 text-[10px] text-text-muted font-semibold uppercase">
+                              1st Place Finish
+                            </div>
+                          </div>
+
+                          {/* 2nd Place Card */}
+                          <div className="glass p-6 rounded-2xl border border-slate-400/20 bg-gradient-to-br from-slate-400/5 to-transparent relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+                            <div className="absolute top-2 right-2 text-4xl opacity-10 font-bold select-none font-display">2nd</div>
+                            <div>
+                              <div className="w-10 h-10 rounded-full bg-slate-400/10 flex items-center justify-center text-xl mb-4 border border-slate-400/20">
+                                🥈
+                              </div>
+                              <h3 className="font-bold text-text-primary text-sm uppercase tracking-wider text-slate-300">
+                                Runner Up
+                              </h3>
+                              <p className="mt-2 text-text-secondary text-base font-semibold leading-relaxed">
+                                {pool.prizes.second}
+                              </p>
+                            </div>
+                            <div className="mt-6 text-[10px] text-text-muted font-semibold uppercase">
+                              2nd Place Finish
+                            </div>
+                          </div>
+
+                          {/* 3rd Place Card */}
+                          <div className="glass p-6 rounded-2xl border border-amber-700/20 bg-gradient-to-br from-amber-700/5 to-transparent relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+                            <div className="absolute top-2 right-2 text-4xl opacity-10 font-bold select-none font-display">3rd</div>
+                            <div>
+                              <div className="w-10 h-10 rounded-full bg-amber-700/10 flex items-center justify-center text-xl mb-4 border border-amber-700/20">
+                                🥉
+                              </div>
+                              <h3 className="font-bold text-text-primary text-sm uppercase tracking-wider text-amber-600">
+                                Second Runner Up
+                              </h3>
+                              <p className="mt-2 text-text-secondary text-base font-semibold leading-relaxed">
+                                {pool.prizes.third}
+                              </p>
+                            </div>
+                            <div className="mt-6 text-[10px] text-text-muted font-semibold uppercase">
+                              3rd Place Finish
+                            </div>
+                          </div>
+                        </div>
+
+                        {pool.prizes.additional && pool.prizes.additional.length > 0 && (
+                          <div className="space-y-4 border-t border-border/40 pt-6">
+                            <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider flex items-center gap-1.5">
+                              <span>⭐</span> Additional Customizable Rewards
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {pool.prizes.additional.map((prize, idx) => (
+                                <div key={idx} className="glass p-4 rounded-xl border border-border/60 bg-surface-2/40 flex items-center gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-brand-muted/30 border border-brand/20 flex items-center justify-center text-xs font-black text-brand flex-shrink-0">
+                                    {idx + 4}th
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-text-primary text-xs font-semibold truncate leading-relaxed">
+                                      {prize}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
