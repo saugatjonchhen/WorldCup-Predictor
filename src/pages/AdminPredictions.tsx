@@ -210,8 +210,8 @@ export default function AdminPredictions() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Left Sidebar */}
-          <div className="lg:col-span-4 space-y-4">
+          {/* Left Sidebar - User Directory */}
+          <div className={`lg:col-span-4 space-y-4 ${selectedUserId ? 'hidden lg:block' : 'block'}`}>
             <div className="glass p-6 rounded-2xl border border-border/80 flex flex-col gap-5">
               <div className="flex items-center justify-between border-b border-border/40 pb-3">
                 <h2 className="text-xs font-black uppercase tracking-widest text-text-muted">
@@ -354,7 +354,16 @@ export default function AdminPredictions() {
           </div>
 
           {/* Right Area - Predictions Dashboard */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className={`lg:col-span-8 space-y-6 ${selectedUserId ? 'block' : 'hidden lg:block'}`}>
+            {selectedUserId && (
+              <button
+                onClick={() => setSelectedUserId(null)}
+                className="lg:hidden flex items-center gap-2 mb-4 px-4 py-2.5 rounded-xl bg-surface-2 border border-border text-xs font-bold text-brand hover:text-brand-dim transition-all w-fit cursor-pointer"
+              >
+                <span>←</span> Back to User Directory
+              </button>
+            )}
+
             {!selectedUserId ? (
               <div className="glass p-12 rounded-2xl text-center border border-border/80 max-w-lg mx-auto my-12 flex flex-col items-center justify-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-3xl shadow-sm">

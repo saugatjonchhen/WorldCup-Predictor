@@ -111,36 +111,36 @@ export default function Profile() {
 
         <div className="flex flex-col md:flex-row gap-8 items-start">
           {/* Navigation Menu */}
-          <div className="w-full md:w-64 shrink-0 glass p-4 rounded-2xl border border-border/80 flex flex-col gap-2">
+          <div className="w-full md:w-64 shrink-0 glass p-2 md:p-4 rounded-2xl border border-border/80 flex flex-row md:flex-col gap-1.5 md:gap-2 overflow-x-auto no-scrollbar">
             <button
               onClick={() => setActiveTab('profile')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+              className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl text-xs md:text-sm font-bold transition-all text-left shrink-0 ${
                 activeTab === 'profile'
                   ? 'bg-brand text-text-inverse shadow-md shadow-brand/20'
                   : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
               }`}
             >
-              <span className="text-lg">👤</span> Public Profile
+              <span className="text-sm md:text-lg">👤</span> Public Profile
             </button>
             <button
               onClick={() => setActiveTab('security')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+              className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl text-xs md:text-sm font-bold transition-all text-left shrink-0 ${
                 activeTab === 'security'
                   ? 'bg-brand text-text-inverse shadow-md shadow-brand/20'
                   : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
               }`}
             >
-              <span className="text-lg">🔒</span> Security
+              <span className="text-sm md:text-lg">🔒</span> Security
             </button>
             <button
               onClick={() => setActiveTab('predictions')}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all text-left ${
+              className={`flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-xl text-xs md:text-sm font-bold transition-all text-left shrink-0 ${
                 activeTab === 'predictions'
                   ? 'bg-brand text-text-inverse shadow-md shadow-brand/20'
                   : 'text-text-secondary hover:bg-surface-2 hover:text-text-primary'
               }`}
             >
-              <span className="text-lg">⚽</span> My Predictions
+              <span className="text-sm md:text-lg">⚽</span> My Predictions
             </button>
           </div>
 

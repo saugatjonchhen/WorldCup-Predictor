@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -10,8 +10,10 @@ export function Layout({ children }: LayoutProps) {
   const { user, profile, signOut } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const [isMoreOpen, setIsMoreOpen] = useState(false)
 
   async function handleLogout() {
+    setIsMoreOpen(false)
     await signOut()
     navigate('/')
   }
@@ -22,6 +24,25 @@ export function Layout({ children }: LayoutProps) {
     { label: 'Pools', path: '/pools', icon: '🤝' },
     { label: 'Rules', path: '/rules', icon: '📜' },
     { label: 'Profile', path: '/profile', icon: '👤' },
+    ...(profile?.role === 'admin'
+      ? [
+          { label: 'Simulator', path: '/simulator', icon: '⚙️' },
+          { label: 'Admin View', path: '/admin/predictions', icon: '🔑' },
+        ]
+      : []),
+  ]
+
+  // Primary mobile items that fit perfectly in the bottom navigation
+  const mobilePrimaryItems = [
+    { label: 'Dashboard', path: '/dashboard', icon: '📊' },
+    { label: 'Bracket', path: '/bracket', icon: '🔮' },
+    { label: 'Pools', path: '/pools', icon: '🤝' },
+    { label: 'Profile', path: '/profile', icon: '👤' },
+  ]
+
+  // Secondary/More items for the bottom drawer
+  const mobileMoreItems = [
+    { label: 'Rules', path: '/rules', icon: '📜' },
     ...(profile?.role === 'admin'
       ? [
           { label: 'Simulator', path: '/simulator', icon: '⚙️' },
@@ -99,23 +120,99 @@ export function Layout({ children }: LayoutProps) {
       </main>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/90 backdrop-blur-lg border-t border-border/80 px-6 py-2 flex justify-around items-center">
-        {navItems.map((item) => {
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface-2/90 backdrop-blur-xl border-t border-border/60 px-3 py-2 flex justify-around items-center">
+        {mobilePrimaryItems.map((item) => {
           const isActive = location.pathname === item.path
           return (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-lg transition-colors ${
-                isActive ? 'text-brand' : 'text-text-secondary'
+              className={`flex-1 flex flex-col items-center gap-0.5 py-1 px-1 rounded-xl transition-all ${
+                isActive ? 'text-brand scale-105' : 'text-text-secondary'
               }`}
             >
-              <span className="text-xl">{item.icon}</span>
-              <span className="text-[10px] font-bold tracking-wide">{item.label}</span>
+              <span className="text-xl leading-none">{item.icon}</span>
+              <span className="text-[10px] font-bold tracking-tight">{item.label}</span>
             </Link>
           )
         })}
+
+        {/* "More" Trigger Button for mobile navigation */}
+        <button
+          onClick={() => setIsMoreOpen(true)}
+          className={`flex-1 flex flex-col items-center gap-0.5 py-1 px-1 rounded-xl transition-all border-none bg-transparent cursor-pointer ${
+            isMoreOpen || mobileMoreItems.some(item => location.pathname === item.path)
+              ? 'text-brand scale-105'
+              : 'text-text-secondary'
+          }`}
+        >
+          <span className="text-xl leading-none">☰</span>
+          <span className="text-[10px] font-bold tracking-tight">More</span>
+        </button>
       </div>
+
+      {/* Mobile "More" Bottom Sheet Overlay */}
+      {isMoreOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="md:hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm animate-fade-in"
+            onClick={() => setIsMoreOpen(false)}
+          />
+
+          {/* Bottom Sheet Drawer */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-2 border-t border-brand/20 p-6 rounded-t-2xl flex flex-col gap-4 animate-slide-up shadow-lg max-w-md mx-auto">
+            {/* Header / Grab Handle */}
+            <div className="flex flex-col items-center gap-2 mb-2">
+              <div className="w-12 h-1 bg-border rounded-full" />
+              <h3 className="font-display font-bold text-sm text-text-secondary uppercase tracking-widest mt-1">
+                More Options
+              </h3>
+            </div>
+
+            {/* Navigation options in the sheet */}
+            <div className="flex flex-col gap-2">
+              {mobileMoreItems.map((item) => {
+                const isActive = location.pathname === item.path
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsMoreOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border border-border/40 font-semibold transition-all ${
+                      isActive
+                        ? 'bg-brand/10 text-brand border-brand/30'
+                        : 'text-text-primary hover:bg-surface-3 hover:text-brand'
+                    }`}
+                  >
+                    <span className="text-xl">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+
+            <hr className="border-border my-2" />
+
+            {/* Logout action in Mobile menu */}
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-live/10 text-live border border-live/30 font-bold hover:bg-live/20 transition-colors"
+            >
+              <span>🚪</span>
+              <span>Sign Out</span>
+            </button>
+
+            {/* Cancel/Close Button */}
+            <button
+              onClick={() => setIsMoreOpen(false)}
+              className="w-full py-3 rounded-xl bg-surface-3 border border-border font-bold text-text-secondary hover:text-text-primary transition-colors mt-1"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Spacer for mobile bottom nav */}
       <div className="md:hidden h-16" />
