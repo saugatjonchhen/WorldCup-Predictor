@@ -73,6 +73,7 @@ interface UserPredictionsViewProps {
 
 export function UserPredictionsView({ userId, profile, showWarning = false }: UserPredictionsViewProps) {
   const [activeTab, setActiveTab] = useState<'matches' | 'stages'>('matches')
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
   
   // Prediction filters
   const [matchStatusFilter, setMatchStatusFilter] = useState<'all' | 'scheduled' | 'live' | 'completed'>('all')
@@ -96,7 +97,8 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
         .eq('user_id', userId)
 
       if (error) throw error
-      return (data || []).filter((p: any) => p.match) as MatchPrediction[]
+      const filtered = (data || []).filter((p: any) => p.match) as MatchPrediction[]
+      return filtered.sort((a, b) => new Date(a.match.kickoff_time).getTime() - new Date(b.match.kickoff_time).getTime())
     },
     enabled: !!userId,
   })
@@ -208,10 +210,10 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-surface-2 p-1 border border-border rounded-xl">
+          <div className="flex items-center gap-1.5 bg-surface-2 p-1 border border-border rounded-xl w-full md:w-auto justify-center md:justify-start">
             <button
               onClick={() => setActiveTab('matches')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+              className={`flex-1 md:flex-initial text-center px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
                 activeTab === 'matches'
                   ? 'bg-brand text-text-inverse shadow-brand shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
@@ -221,7 +223,7 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
             </button>
             <button
               onClick={() => setActiveTab('stages')}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+              className={`flex-1 md:flex-initial text-center px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
                 activeTab === 'stages'
                   ? 'bg-brand text-text-inverse shadow-brand shadow-sm'
                   : 'text-text-secondary hover:text-text-primary'
@@ -234,40 +236,40 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
       )}
 
       {/* Key Statistics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         {/* Points card */}
-        <div className="glass p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
-          <span className="text-[10px] font-black uppercase tracking-wider text-text-muted">Total Score</span>
-          <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-black text-brand">{stats.points}</span>
-            <span className="text-xs font-bold text-text-muted">pts</span>
+        <div className="glass p-3 md:p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
+          <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider text-text-muted">Total Score</span>
+          <div className="mt-1 md:mt-2 flex items-baseline gap-1">
+            <span className="text-xl md:text-2xl font-black text-brand">{stats.points}</span>
+            <span className="text-[10px] md:text-xs font-bold text-text-muted">pts</span>
           </div>
         </div>
 
         {/* Prediction Rate card */}
-        <div className="glass p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
-          <span className="text-[10px] font-black uppercase tracking-wider text-text-muted">Predictions</span>
-          <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-black text-text-primary">{stats.total}</span>
-            <span className="text-xs font-bold text-text-muted">made</span>
+        <div className="glass p-3 md:p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
+          <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider text-text-muted">Predictions</span>
+          <div className="mt-1 md:mt-2 flex items-baseline gap-1">
+            <span className="text-xl md:text-2xl font-black text-text-primary">{stats.total}</span>
+            <span className="text-[10px] md:text-xs font-bold text-text-muted">made</span>
           </div>
         </div>
 
         {/* Accuracy rate */}
-        <div className="glass p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
-          <span className="text-[10px] font-black uppercase tracking-wider text-text-muted">Outcome Accuracy</span>
-          <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-black text-emerald-500">{stats.accuracyRate}%</span>
-            <span className="text-[10px] font-semibold text-text-muted">({stats.exact + stats.outcomes}/{stats.completedCount})</span>
+        <div className="glass p-3 md:p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
+          <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider text-text-muted">Outcome Accuracy</span>
+          <div className="mt-1 md:mt-2 flex items-baseline gap-1 flex-wrap">
+            <span className="text-xl md:text-2xl font-black text-emerald-500">{stats.accuracyRate}%</span>
+            <span className="text-[9px] font-semibold text-text-muted">({stats.exact + stats.outcomes}/{stats.completedCount})</span>
           </div>
         </div>
 
         {/* Exact scores */}
-        <div className="glass p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
-          <span className="text-[10px] font-black uppercase tracking-wider text-text-muted">Exact Scores</span>
-          <div className="mt-2 flex items-baseline gap-1">
-            <span className="text-2xl font-black text-indigo-400">{stats.exact}</span>
-            <span className="text-xs font-bold text-text-muted">times</span>
+        <div className="glass p-3 md:p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
+          <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider text-text-muted">Exact Scores</span>
+          <div className="mt-1 md:mt-2 flex items-baseline gap-1">
+            <span className="text-xl md:text-2xl font-black text-indigo-400">{stats.exact}</span>
+            <span className="text-[10px] md:text-xs font-bold text-text-muted">times</span>
           </div>
         </div>
       </div>
@@ -281,78 +283,100 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
 
       {activeTab === 'matches' ? (
         <div className="space-y-4">
-          <div className="glass p-4 rounded-xl border border-border/60 flex flex-col sm:flex-row justify-between gap-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] font-black uppercase tracking-wider text-text-muted">Match Status</label>
-                <div className="flex bg-surface-2 p-0.5 border border-border rounded-lg gap-0.5">
-                  {(['all', 'scheduled', 'live', 'completed'] as const).map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => setMatchStatusFilter(status)}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold capitalize transition-colors ${
-                        matchStatusFilter === status
-                          ? 'bg-brand text-text-inverse'
-                          : 'text-text-secondary hover:text-text-primary'
-                      }`}
-                    >
-                      {status}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] font-black uppercase tracking-wider text-text-muted">Accuracy Filter</label>
-                <div className="flex bg-surface-2 p-0.5 border border-border rounded-lg gap-0.5">
-                  {(['all', 'exact', 'outcome', 'incorrect', 'pending'] as const).map((res) => (
-                    <button
-                      key={res}
-                      onClick={() => setMatchResultFilter(res)}
-                      className={`px-2 py-1 rounded-md text-[10px] font-bold capitalize transition-colors ${
-                        matchResultFilter === res
-                          ? 'bg-brand text-text-inverse'
-                          : 'text-text-secondary hover:text-text-primary'
-                      }`}
-                    >
-                      {res}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <label className="text-[9px] font-black uppercase tracking-wider text-text-muted">Tournament Phase</label>
-                <div className="flex bg-surface-2 p-0.5 border border-border rounded-lg gap-0.5">
-                  {(['all', 'group', 'knockout'] as const).map((phase) => (
-                    <button
-                      key={phase}
-                      onClick={() => setMatchStageFilter(phase)}
-                      className={`px-2.5 py-1 rounded-md text-[10px] font-bold capitalize transition-colors ${
-                        matchStageFilter === phase
-                          ? 'bg-brand text-text-inverse'
-                          : 'text-text-secondary hover:text-text-primary'
-                      }`}
-                    >
-                      {phase}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          {/* Mobile responsive toggle header for filters */}
+          <div className="flex items-center justify-between gap-4 bg-surface-2/40 p-3 rounded-xl border border-border/85 md:hidden">
+            <div className="text-xs text-text-secondary font-medium">
+              Showing <span className="font-bold text-text-primary">{filteredPredictions.length}</span> of <span className="font-bold text-text-primary">{predictions.length}</span>
             </div>
+            <button
+              onClick={() => setFiltersExpanded(!filtersExpanded)}
+              className="btn btn-secondary btn-sm flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-xs"
+            >
+              <span>🔍</span>
+              <span>Filters</span>
+              {(matchStatusFilter !== 'all' || matchResultFilter !== 'all' || matchStageFilter !== 'all') && (
+                <span className="w-1.5 h-1.5 rounded-full bg-brand animate-pulse" />
+              )}
+              <span className={`text-[9px] text-text-muted transition-transform duration-200 ${filtersExpanded ? 'rotate-180' : ''}`}>
+                ▼
+              </span>
+            </button>
+          </div>
 
-            {(matchStatusFilter !== 'all' || matchResultFilter !== 'all' || matchStageFilter !== 'all') && (
-              <button
-                onClick={() => {
-                  setMatchStatusFilter('all')
-                  setMatchResultFilter('all')
-                  setMatchStageFilter('all')
-                }}
-                className="self-end sm:self-center px-3 py-1.5 rounded-lg border border-border hover:bg-surface-2 text-[10px] font-bold text-brand transition-colors cursor-pointer"
-              >
-                Reset Filters
-              </button>
-            )}
+          <div className={`md:block ${filtersExpanded ? 'block' : 'hidden'}`}>
+            <div className="glass p-4 rounded-xl border border-border/60 flex flex-col md:flex-row justify-between gap-4">
+              <div className="flex flex-col md:flex-row flex-wrap items-start md:items-center gap-4">
+                <div className="flex flex-col gap-1 w-full md:w-auto">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-text-muted font-display">Match Status</label>
+                  <div className="flex bg-surface-2 p-0.5 border border-border rounded-lg gap-0.5 overflow-x-auto no-scrollbar">
+                    {(['all', 'scheduled', 'live', 'completed'] as const).map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => setMatchStatusFilter(status)}
+                        className={`flex-1 md:flex-none text-center px-2.5 py-1 rounded-md text-[10px] font-bold capitalize transition-colors ${
+                          matchStatusFilter === status
+                            ? 'bg-brand text-text-inverse'
+                            : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                      >
+                        {status}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1 w-full md:w-auto">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-text-muted font-display">Accuracy Filter</label>
+                  <div className="flex bg-surface-2 p-0.5 border border-border rounded-lg gap-0.5 overflow-x-auto no-scrollbar">
+                    {(['all', 'exact', 'outcome', 'incorrect', 'pending'] as const).map((res) => (
+                      <button
+                        key={res}
+                        onClick={() => setMatchResultFilter(res)}
+                        className={`flex-1 md:flex-none text-center px-2 py-1 rounded-md text-[10px] font-bold capitalize transition-colors ${
+                          matchResultFilter === res
+                            ? 'bg-brand text-text-inverse'
+                            : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                      >
+                        {res}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1 w-full md:w-auto">
+                  <label className="text-[9px] font-black uppercase tracking-wider text-text-muted font-display">Tournament Phase</label>
+                  <div className="flex bg-surface-2 p-0.5 border border-border rounded-lg gap-0.5 overflow-x-auto no-scrollbar">
+                    {(['all', 'group', 'knockout'] as const).map((phase) => (
+                      <button
+                        key={phase}
+                        onClick={() => setMatchStageFilter(phase)}
+                        className={`flex-1 md:flex-none text-center px-2.5 py-1 rounded-md text-[10px] font-bold capitalize transition-colors ${
+                          matchStageFilter === phase
+                            ? 'bg-brand text-text-inverse'
+                            : 'text-text-secondary hover:text-text-primary'
+                        }`}
+                      >
+                        {phase}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {(matchStatusFilter !== 'all' || matchResultFilter !== 'all' || matchStageFilter !== 'all') && (
+                <button
+                  onClick={() => {
+                    setMatchStatusFilter('all')
+                    setMatchResultFilter('all')
+                    setMatchStageFilter('all')
+                  }}
+                  className="w-full md:w-auto self-stretch md:self-center px-3 py-1.5 rounded-lg border border-border hover:bg-surface-2 text-[10px] font-bold text-brand transition-colors cursor-pointer text-center"
+                >
+                  Reset Filters
+                </button>
+              )}
+            </div>
           </div>
 
           {isLoadingPredictions ? (
@@ -394,14 +418,14 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
                 return (
                   <div
                     key={p.id}
-                    className={`${cardBg} rounded-2xl p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-lg ${cardBorder}`}
+                    className={`${cardBg} rounded-2xl p-4 md:p-5 flex flex-col justify-between transition-all duration-300 hover:shadow-lg ${cardBorder}`}
                   >
-                    <div className="flex flex-col gap-1 mb-4 border-b border-border/40 pb-2">
+                    <div className="flex flex-col gap-1 mb-3 border-b border-border/40 pb-2">
                       <div className="flex items-center justify-between text-[10px] text-text-secondary">
-                        <span className="font-bold uppercase tracking-wider">
+                        <span className="font-bold uppercase tracking-wider text-[9px] sm:text-[10px]">
                           {m.group_name ? `Group ${m.group_name}` : m.stage.replace('_', ' ')} • Match {m.external_match_id}
                         </span>
-                        <span className={`px-2 py-0.5 rounded font-black uppercase tracking-wider text-[8px] ${
+                        <span className={`px-1.5 py-0.5 rounded font-black uppercase tracking-wider text-[8px] ${
                           isFinished 
                             ? 'bg-surface-3 text-text-secondary border border-border/60' 
                             : isLive 
@@ -411,28 +435,28 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
                           {m.status}
                         </span>
                       </div>
-                      <div className="text-[10px] text-text-muted font-medium">
+                      <div className="text-[9px] sm:text-[10px] text-text-muted font-medium">
                         {formatLocalTime(m.kickoff_time)}
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4 my-2">
-                      <div className="flex flex-col items-center gap-2 flex-1 text-center">
+                    <div className="flex items-center justify-between gap-2 sm:gap-4 my-2">
+                      <div className="flex flex-col items-center gap-1.5 flex-1 text-center">
                         <img
                           src={m.home_team_info?.flag_url ?? 'https://flagcdn.com/w80/un.png'}
                           alt={m.home_team}
-                          className="w-10 h-6 object-cover rounded shadow-sm border border-border/40"
+                          className="w-8 h-5 sm:w-10 sm:h-6 object-cover rounded shadow-sm border border-border/40"
                         />
-                        <span className="text-xs font-bold text-text-primary line-clamp-1">
+                        <span className="text-[10px] sm:text-xs font-bold text-text-primary line-clamp-1">
                           {m.home_team}
                         </span>
                       </div>
 
-                      <div className="flex flex-col items-center gap-1.5 min-w-[90px]">
-                        <div className="text-[9px] uppercase font-black tracking-wider text-text-muted">
+                      <div className="flex flex-col items-center gap-1 min-w-[75px] sm:min-w-[90px]">
+                        <div className="text-[8px] sm:text-[9px] uppercase font-black tracking-wider text-text-muted">
                           Predicted
                         </div>
-                        <div className="flex items-center gap-2 bg-surface-2 px-3 py-1.5 rounded-xl border border-border font-extrabold text-sm text-text-primary shadow-inner">
+                        <div className="flex items-center gap-1.5 bg-surface-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl border border-border font-extrabold text-xs sm:text-sm text-text-primary shadow-inner">
                           <span>{p.home_score_pred}</span>
                           <span className="text-text-muted font-normal">-</span>
                           <span>{p.away_score_pred}</span>
@@ -440,10 +464,10 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
 
                         {m.status !== 'scheduled' && (
                           <>
-                            <div className="text-[9px] uppercase font-black tracking-wider text-text-muted mt-1.5">
+                            <div className="text-[8px] sm:text-[9px] uppercase font-black tracking-wider text-text-muted mt-1">
                               Actual
                             </div>
-                            <div className="flex items-center gap-2 bg-brand/10 border border-brand/20 px-2.5 py-1 rounded-lg font-black text-xs text-brand">
+                            <div className="flex items-center gap-1.5 bg-brand/10 border border-brand/20 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg font-black text-[10px] sm:text-xs text-brand">
                               <span>{m.home_score ?? 0}</span>
                               <span>:</span>
                               <span>{m.away_score ?? 0}</span>
@@ -452,43 +476,43 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
                         )}
                       </div>
 
-                      <div className="flex flex-col items-center gap-2 flex-1 text-center">
+                      <div className="flex flex-col items-center gap-1.5 flex-1 text-center">
                         <img
                           src={m.away_team_info?.flag_url ?? 'https://flagcdn.com/w80/un.png'}
                           alt={m.away_team}
-                          className="w-10 h-6 object-cover rounded shadow-sm border border-border/40"
+                          className="w-8 h-5 sm:w-10 sm:h-6 object-cover rounded shadow-sm border border-border/40"
                         />
-                        <span className="text-xs font-bold text-text-primary line-clamp-1">
+                        <span className="text-[10px] sm:text-xs font-bold text-text-primary line-clamp-1">
                           {m.away_team}
                         </span>
                       </div>
                     </div>
 
                     {isFinished && (
-                      <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
-                        <span className={`font-black uppercase tracking-wider text-[11px] ${
+                      <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between text-xs gap-2">
+                        <span className={`font-black uppercase tracking-wider text-[10px] sm:text-[11px] shrink-0 ${
                           p.points_earned > 0 ? 'text-brand' : 'text-text-muted'
                         }`}>
                           Points: {p.points_earned}
                         </span>
                         <div className="flex gap-1 flex-wrap justify-end">
                           {p.exact_score && (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[9px]">
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-[8px] sm:text-[9px]">
                               Exact Score
                             </span>
                           )}
                           {p.correct_result && !p.exact_score && (
-                            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold text-[9px]">
-                              Outcome Match
+                            <span className="px-1.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold text-[8px] sm:text-[9px]">
+                              Outcome
                             </span>
                           )}
                           {p.correct_goal_diff && !p.exact_score && (
-                            <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-bold text-[9px]">
+                            <span className="px-1.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-bold text-[8px] sm:text-[9px]">
                               Goal Diff
                             </span>
                           )}
                           {p.points_earned === 0 && (
-                            <span className="px-2 py-0.5 rounded-full bg-surface-3 border border-border text-text-muted font-bold text-[9px]">
+                            <span className="px-1.5 py-0.5 rounded-full bg-surface-3 border border-border text-text-muted font-bold text-[8px] sm:text-[9px]">
                               Incorrect
                             </span>
                           )}
