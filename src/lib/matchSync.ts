@@ -16,6 +16,14 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
     if (dbError) throw dbError
     if (!dbMatches) throw new Error('No matches found in database')
 
+    // Fetch teams to map IDs to official names
+    const { data: dbTeams, error: teamsError } = await supabase
+      .from('teams')
+      .select('external_team_id, name')
+
+    if (teamsError) throw teamsError
+    const teamMap = new Map(dbTeams?.map((t) => [t.external_team_id, t.name]) || [])
+
     // 2. Fetch latest data from the external API
     const response = await fetch('https://worldcup26.ir/get/games')
     if (!response.ok) {
@@ -58,6 +66,17 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
       const home_score = status === 'completed' ? apiHomeScore : null
       const away_score = status === 'completed' ? apiAwayScore : null
 
+      // Map team IDs and names
+      const apiHomeExtId = game.home_team_id !== '0' && game.home_team_id !== null && game.home_team_id !== undefined ? String(game.home_team_id) : null
+      const apiAwayExtId = game.away_team_id !== '0' && game.away_team_id !== null && game.away_team_id !== undefined ? String(game.away_team_id) : null
+
+      const homeTeamName = apiHomeExtId 
+        ? (teamMap.get(apiHomeExtId) || game.home_team_name_en) 
+        : (dbMatch.stage !== 'group' ? game.home_team_label : game.home_team_name_en)
+      const awayTeamName = apiAwayExtId 
+        ? (teamMap.get(apiAwayExtId) || game.away_team_name_en) 
+        : (dbMatch.stage !== 'group' ? game.away_team_label : game.away_team_name_en)
+
       // Check if any fields changed
       const hasChanged =
         dbMatch.status !== status ||
@@ -65,7 +84,11 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
         dbMatch.live_away_score !== live_away_score ||
         dbMatch.live_minute !== live_minute ||
         dbMatch.home_score !== home_score ||
-        dbMatch.away_score !== away_score
+        dbMatch.away_score !== away_score ||
+        dbMatch.home_team_ext_id !== apiHomeExtId ||
+        dbMatch.away_team_ext_id !== apiAwayExtId ||
+        dbMatch.home_team !== homeTeamName ||
+        dbMatch.away_team !== awayTeamName
 
       if (hasChanged) {
         const { error: updateError } = await supabase
@@ -77,6 +100,10 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
             live_minute,
             home_score,
             away_score,
+            home_team: homeTeamName,
+            away_team: awayTeamName,
+            home_team_ext_id: apiHomeExtId,
+            away_team_ext_id: apiAwayExtId,
             updated_at: new Date().toISOString()
           })
           .eq('id', dbMatch.id)

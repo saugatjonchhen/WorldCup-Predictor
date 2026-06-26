@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -40,6 +40,8 @@ export default function MatchDetail() {
   const { matchId } = useParams<{ matchId: string }>()
   const { user } = useAuth()
   const queryClient = useQueryClient()
+  const [searchParams] = useSearchParams()
+  const backTo = searchParams.get('from') === 'bracket' ? '/dashboard?tab=bracket' : '/dashboard'
 
   useEffect(() => {
     if (!matchId) return
@@ -203,7 +205,7 @@ export default function MatchDetail() {
       <Layout>
         <div className="glass p-10 rounded-xl text-center border border-border/80 max-w-md mx-auto">
           <h3 className="font-display font-bold text-lg text-text-primary">Match Not Found</h3>
-          <Link to="/dashboard" className="btn btn-primary btn-sm mt-4">
+          <Link to={backTo} className="btn btn-primary btn-sm mt-4">
             Back to Dashboard
           </Link>
         </div>
@@ -240,7 +242,7 @@ export default function MatchDetail() {
   return (
     <Layout>
       <div className="space-y-8 max-w-4xl mx-auto">
-        <Link to="/dashboard" className="text-sm font-semibold text-brand hover:text-brand-dim transition-colors flex items-center gap-1">
+        <Link to={backTo} className="text-sm font-semibold text-brand hover:text-brand-dim transition-colors flex items-center gap-1">
           ← Back to Dashboard
         </Link>
 
