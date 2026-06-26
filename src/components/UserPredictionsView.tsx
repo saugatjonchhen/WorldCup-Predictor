@@ -20,6 +20,9 @@ interface Match {
   status: string
   home_score: number | null
   away_score: number | null
+  home_score_et?: number | null
+  away_score_et?: number | null
+  penalty_winner?: string | null
   home_team_info?: TeamInfo | null
   away_team_info?: TeamInfo | null
 }
@@ -122,11 +125,35 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
     enabled: !!userId,
   })
 
+  const { data: stagePoints = 0 } = useQuery<number>({
+    queryKey: ['user-stage-prediction-points-view', userId],
+    queryFn: async () => {
+      if (!userId) return 0
+      const { data, error } = await supabase
+        .rpc('calculate_stage_prediction_points', { p_user_id: userId })
+      if (error) throw error
+      return data || 0
+    },
+    enabled: !!userId,
+  })
+
+  const { data: allMatches = [] } = useQuery<Match[]>({
+    queryKey: ['all-matches-user-view'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('matches')
+        .select('*')
+      if (error) throw error
+      return data || []
+    }
+  })
+
   const stats = (() => {
     const total = predictions.length
     const completed = predictions.filter((p) => p.match.status === 'completed')
     const completedCount = completed.length
-    const points = predictions.reduce((sum, p) => sum + (p.points_earned || 0), 0)
+    const matchPoints = predictions.reduce((sum, p) => sum + (p.points_earned || 0), 0)
+    const points = matchPoints + stagePoints
     
     const exact = predictions.filter((p) => p.exact_score && p.match.status === 'completed').length
     const outcomes = predictions.filter((p) => p.correct_result && !p.exact_score && p.match.status === 'completed').length
@@ -139,6 +166,8 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
       total,
       completedCount,
       points,
+      matchPoints,
+      stagePoints,
       exact,
       outcomes,
       incorrect,
@@ -164,6 +193,86 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
     }
     return true
   })
+
+  const isStagePredictionCorrect = (sp: StagePrediction, matches: Match[]) => {
+    const isWinnerOfMatch = (match: Match, teamId: string) => {
+      if (match.status !== 'completed') return false
+      
+      const isHome = match.home_team_ext_id === teamId
+      const isAway = match.away_team_ext_id === teamId
+      if (!isHome && !isAway) return false
+      
+      if (match.penalty_winner) {
+        return (isHome && match.penalty_winner === match.home_team) || 
+               (isAway && match.penalty_winner === match.away_team)
+      }
+      
+      const homeScore = (match.home_score ?? 0) + (match.home_score_et ?? 0)
+      const awayScore = (match.away_score ?? 0) + (match.away_score_et ?? 0)
+      
+      if (homeScore > awayScore) return isHome
+      if (awayScore > homeScore) return isAway
+      return false
+    }
+
+    if (sp.stage === 'round_of_16') {
+      const ro32Match = matches.find(m => 
+        m.stage === 'round_of_32' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return ro32Match ? isWinnerOfMatch(ro32Match, sp.team_id) : false
+    }
+    if (sp.stage === 'qf') {
+      const ro16Match = matches.find(m => 
+        m.stage === 'round_of_16' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return ro16Match ? isWinnerOfMatch(ro16Match, sp.team_id) : false
+    }
+    if (sp.stage === 'sf') {
+      const qfMatch = matches.find(m => 
+        m.stage === 'qf' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return qfMatch ? isWinnerOfMatch(qfMatch, sp.team_id) : false
+    }
+    if (sp.stage === 'final') {
+      const sfMatch = matches.find(m => 
+        m.stage === 'sf' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return sfMatch ? isWinnerOfMatch(sfMatch, sp.team_id) : false
+    }
+    if (sp.stage === 'winner') {
+      const finalMatch = matches.find(m => m.stage === 'final')
+      return finalMatch ? isWinnerOfMatch(finalMatch, sp.team_id) : false
+    }
+    return false
+  }
+
+  const getStagePredictionStatus = (sp: StagePrediction) => {
+    if (isStagePredictionCorrect(sp, allMatches)) {
+      return 'correct'
+    }
+
+    let precedingStage = ''
+    if (sp.stage === 'round_of_16') precedingStage = 'round_of_32'
+    else if (sp.stage === 'qf') precedingStage = 'round_of_16'
+    else if (sp.stage === 'sf') precedingStage = 'qf'
+    else if (sp.stage === 'final') precedingStage = 'sf'
+    else if (sp.stage === 'winner') precedingStage = 'final'
+
+    if (precedingStage) {
+      const matchWithTeam = allMatches.find(m => 
+        m.stage === precedingStage && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      if (matchWithTeam && matchWithTeam.status === 'completed') {
+        return 'incorrect'
+      }
+    }
+    return 'pending'
+  }
 
   function formatLocalTime(timeStr: string) {
     const date = new Date(timeStr)
@@ -237,12 +346,21 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
       )}
 
       {/* Key Statistics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
         {/* Points card */}
         <div className="glass p-3 md:p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
           <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider text-text-muted">Total Score</span>
           <div className="mt-1 md:mt-2 flex items-baseline gap-1">
             <span className="text-xl md:text-2xl font-black text-brand">{stats.points}</span>
+            <span className="text-[10px] md:text-xs font-bold text-text-muted">pts</span>
+          </div>
+        </div>
+
+        {/* Bracket Score card */}
+        <div className="glass p-3 md:p-4 rounded-2xl border border-border/80 flex flex-col justify-between hover:scale-[1.02] transition-transform">
+          <span className="text-[9px] md:text-[10px] font-black uppercase tracking-wider text-text-muted">Bracket Score</span>
+          <div className="mt-1 md:mt-2 flex items-baseline gap-1">
+            <span className="text-xl md:text-2xl font-black text-purple-400">{stats.stagePoints}</span>
             <span className="text-[10px] md:text-xs font-bold text-text-muted">pts</span>
           </div>
         </div>
@@ -555,21 +673,47 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
                   <p className="text-xs text-text-muted italic">No selections stored for this round.</p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                    {predictionsForStage.map((sp) => (
-                      <div
-                        key={sp.id}
-                        className="border border-border/60 bg-surface-2/40 hover:bg-surface-2 hover:border-brand/40 rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center transition-all duration-300 shadow-sm"
-                      >
-                        <img
-                          src={sp.team.flag_url ?? 'https://flagcdn.com/w80/un.png'}
-                          alt={sp.team.name}
-                          className="w-8 h-5 object-cover rounded border border-border/30 shadow-sm"
-                        />
-                        <span className="text-[10px] font-bold text-text-primary line-clamp-1">
-                          {sp.team.name}
-                        </span>
-                      </div>
-                    ))}
+                    {predictionsForStage.map((sp) => {
+                      const status = getStagePredictionStatus(sp)
+                      let cardBorder = 'border-border/60 hover:bg-surface-2 hover:border-brand/40'
+                      let cardBg = 'bg-surface-2/40'
+                      let badge = null
+
+                      if (status === 'correct') {
+                        cardBorder = 'border-emerald-500/50 shadow-emerald-500/5 hover:border-emerald-500'
+                        cardBg = 'bg-emerald-500/[0.02] border'
+                        badge = (
+                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            +{sp.stage === 'winner' ? 20 : 2} pts
+                          </span>
+                        )
+                      } else if (status === 'incorrect') {
+                        cardBorder = 'border-red-500/30 shadow-red-500/5 hover:border-red-500/40'
+                        cardBg = 'bg-red-500/[0.01] border'
+                        badge = (
+                          <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20">
+                            0 pts
+                          </span>
+                        )
+                      }
+
+                      return (
+                        <div
+                          key={sp.id}
+                          className={`rounded-xl p-2.5 flex flex-col items-center gap-1.5 text-center transition-all duration-300 shadow-sm ${cardBg} ${cardBorder}`}
+                        >
+                          <img
+                            src={sp.team.flag_url ?? 'https://flagcdn.com/w80/un.png'}
+                            alt={sp.team.name}
+                            className="w-8 h-5 object-cover rounded border border-border/30 shadow-sm"
+                          />
+                          <span className="text-[10px] font-bold text-text-primary line-clamp-1">
+                            {sp.team.name}
+                          </span>
+                          {badge}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>

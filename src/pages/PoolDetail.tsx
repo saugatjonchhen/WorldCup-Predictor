@@ -25,6 +25,9 @@ interface Match {
   status: string
   home_score: number | null
   away_score: number | null
+  home_score_et?: number | null
+  away_score_et?: number | null
+  penalty_winner?: string | null
   home_team_info?: { flag_url: string } | null
   away_team_info?: { flag_url: string } | null
 }
@@ -82,7 +85,19 @@ interface MemberLeaderboardEntry {
   total_points: number
   correct_scores: number
   correct_outcomes: number
+  stage_points: number
   rank: number
+}
+
+interface StagePrediction {
+  id: string
+  stage: string
+  team_id: string
+  team: {
+    name: string
+    flag_url: string | null
+    fifa_code: string
+  }
 }
 
 interface PoolMember {
@@ -108,7 +123,7 @@ export default function PoolDetail() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
   const [activeTooltipId, setActiveTooltipId] = useState<string | null>(null)
   const [selectedUserEntry, setSelectedUserEntry] = useState<MemberLeaderboardEntry | null>(null)
-  const [modalTab, setModalTab] = useState<'outcomes' | 'scores'>('outcomes')
+  const [modalTab, setModalTab] = useState<'outcomes' | 'scores' | 'bracket'>('outcomes')
 
   // Prizes states
   const [isEditingPrizes, setIsEditingPrizes] = useState(false)
@@ -199,6 +214,7 @@ export default function PoolDetail() {
         total_points: entry.total_points,
         correct_scores: globalStatsMap.get(entry.user_id)?.exact_scores ?? 0,
         correct_outcomes: globalStatsMap.get(entry.user_id)?.correct_results ?? 0,
+        stage_points: entry.stage_points ?? 0,
         rank: entry.pool_rank
       })) as MemberLeaderboardEntry[]
     },
@@ -361,6 +377,81 @@ export default function PoolDetail() {
     enabled: !!selectedUserEntry?.profile_id
   })
 
+  // Fetch stage predictions for the selected user in the modal
+  const { data: userStagePredictions = [], isLoading: isLoadingUserStagePredictions } = useQuery<StagePrediction[]>({
+    queryKey: ['user-stage-predictions-breakdown', selectedUserEntry?.profile_id],
+    queryFn: async () => {
+      if (!selectedUserEntry?.profile_id) return []
+      const { data, error } = await supabase
+        .from('stage_predictions')
+        .select(`
+          *,
+          team:teams!team_id(name, flag_url, fifa_code)
+        `)
+        .eq('user_id', selectedUserEntry.profile_id)
+      
+      if (error) throw error
+      return data as unknown as StagePrediction[]
+    },
+    enabled: !!selectedUserEntry?.profile_id
+  })
+
+  const isStagePredictionCorrect = (sp: StagePrediction, matches: Match[]) => {
+    const isWinnerOfMatch = (match: Match, teamId: string) => {
+      if (match.status !== 'completed') return false
+      
+      const isHome = match.home_team_ext_id === teamId
+      const isAway = match.away_team_ext_id === teamId
+      if (!isHome && !isAway) return false
+      
+      if (match.penalty_winner) {
+        return (isHome && match.penalty_winner === match.home_team) || 
+               (isAway && match.penalty_winner === match.away_team)
+      }
+      
+      const homeScore = (match.home_score ?? 0) + (match.home_score_et ?? 0)
+      const awayScore = (match.away_score ?? 0) + (match.away_score_et ?? 0)
+      
+      if (homeScore > awayScore) return isHome
+      if (awayScore > homeScore) return isAway
+      return false
+    }
+
+    if (sp.stage === 'round_of_16') {
+      const ro32Match = matches.find(m => 
+        m.stage === 'round_of_32' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return ro32Match ? isWinnerOfMatch(ro32Match, sp.team_id) : false
+    }
+    if (sp.stage === 'qf') {
+      const ro16Match = matches.find(m => 
+        m.stage === 'round_of_16' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return ro16Match ? isWinnerOfMatch(ro16Match, sp.team_id) : false
+    }
+    if (sp.stage === 'sf') {
+      const qfMatch = matches.find(m => 
+        m.stage === 'qf' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return qfMatch ? isWinnerOfMatch(qfMatch, sp.team_id) : false
+    }
+    if (sp.stage === 'final') {
+      const sfMatch = matches.find(m => 
+        m.stage === 'sf' && 
+        (m.home_team_ext_id === sp.team_id || m.away_team_ext_id === sp.team_id)
+      )
+      return sfMatch ? isWinnerOfMatch(sfMatch, sp.team_id) : false
+    }
+    if (sp.stage === 'winner') {
+      const finalMatch = matches.find(m => m.stage === 'final')
+      return finalMatch ? isWinnerOfMatch(finalMatch, sp.team_id) : false
+    }
+    return false
+  }
+
   const correctScoreMatches = userPredictions
     .filter(p => p.exact_score)
     .map(p => {
@@ -376,6 +467,18 @@ export default function PoolDetail() {
       return { pred: p, match }
     })
     .filter((item): item is { pred: Prediction; match: Match } => !!item.match)
+
+  const correctStagePredictions = userStagePredictions
+    .filter(sp => isStagePredictionCorrect(sp, allMatches))
+    .map(sp => {
+      let pts = 2
+      let stageLabel = 'Round of 16'
+      if (sp.stage === 'qf') { stageLabel = 'Quarterfinals' }
+      else if (sp.stage === 'sf') { stageLabel = 'Semifinals' }
+      else if (sp.stage === 'final') { stageLabel = 'Finals' }
+      else if (sp.stage === 'winner') { stageLabel = 'Champion'; pts = 20 }
+      return { sp, stageLabel, pts }
+    })
 
   const renderModalMatchRow = (item: { pred: Prediction; match: Match }) => {
     const { pred, match } = item
@@ -722,13 +825,14 @@ export default function PoolDetail() {
                             <th className="py-3 px-4">Player</th>
                             <th className="py-3 px-4 text-center">Correct Scores</th>
                             <th className="py-3 px-4 text-center">Correct Outcomes</th>
+                            <th className="py-3 px-4 text-center">Bracket Pts</th>
                             <th className="py-3 px-4 text-right pr-6 w-28">Points</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/40 text-sm">
                           {sortedStandings.length === 0 ? (
                             <tr>
-                              <td colSpan={5} className="py-8 text-center text-text-secondary">
+                              <td colSpan={6} className="py-8 text-center text-text-secondary">
                                 No matches have finished yet to populate points. Check back after kickoff!
                               </td>
                             </tr>
@@ -781,6 +885,11 @@ export default function PoolDetail() {
                                 {/* Correct outcomes stats */}
                                 <td className="py-3.5 px-4 text-center font-semibold text-text-secondary">
                                   {entry.correct_outcomes}
+                                </td>
+
+                                {/* Bracket points stats */}
+                                <td className="py-3.5 px-4 text-center font-semibold text-text-secondary">
+                                  {entry.stage_points}
                                 </td>
 
                                 {/* Total points */}
@@ -1416,48 +1525,89 @@ export default function PoolDetail() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                <div className="grid grid-cols-3 gap-2 flex-shrink-0">
                   <button
                     onClick={() => setModalTab('outcomes')}
-                    className={`bg-surface-2 border p-3 rounded-xl flex flex-col items-center justify-center gap-1 text-center shadow-sm transition-all cursor-pointer ${
+                    className={`bg-surface-2 border p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 text-center shadow-sm transition-all cursor-pointer ${
                       modalTab === 'outcomes'
                         ? 'border-stats-outcome ring-1 ring-stats-outcome/30 bg-surface-3'
                         : 'border-border hover:border-border/80'
                     }`}
                   >
-                    <span className="text-xl">🏆</span>
-                    <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Correct Outcomes</span>
-                    <span className="text-2xl font-black text-stats-outcome font-display mt-0.5">
+                    <span className="text-lg">🏆</span>
+                    <span className="text-[9px] font-bold text-text-secondary uppercase tracking-wider leading-none">Outcomes</span>
+                    <span className="text-xl font-black text-stats-outcome font-display mt-0.5">
                       {selectedUserEntry.correct_outcomes}
                     </span>
-                    <span className="text-[9px] text-text-muted">(Correct W/D)</span>
+                    <span className="text-[8px] text-text-muted">(Outcome)</span>
                   </button>
 
                   <button
                     onClick={() => setModalTab('scores')}
-                    className={`bg-surface-2 border p-3 rounded-xl flex flex-col items-center justify-center gap-1 text-center shadow-sm transition-all cursor-pointer ${
+                    className={`bg-surface-2 border p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 text-center shadow-sm transition-all cursor-pointer ${
                       modalTab === 'scores'
                         ? 'border-stats-score ring-1 ring-stats-score/30 bg-surface-3'
                         : 'border-border hover:border-border/80'
                     }`}
                   >
-                    <span className="text-xl">🎯</span>
-                    <span className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Correct Scores</span>
-                    <span className="text-2xl font-black text-stats-score font-display mt-0.5">
+                    <span className="text-lg">🎯</span>
+                    <span className="text-[9px] font-bold text-text-secondary uppercase tracking-wider leading-none">Scores</span>
+                    <span className="text-xl font-black text-stats-score font-display mt-0.5">
                       {selectedUserEntry.correct_scores}
                     </span>
-                    <span className="text-[9px] text-text-muted">(Exact Score)</span>
+                    <span className="text-[8px] text-text-muted">(Exact)</span>
+                  </button>
+
+                  <button
+                    onClick={() => setModalTab('bracket')}
+                    className={`bg-surface-2 border p-2.5 rounded-xl flex flex-col items-center justify-center gap-1 text-center shadow-sm transition-all cursor-pointer ${
+                      modalTab === 'bracket'
+                        ? 'border-brand ring-1 ring-brand/30 bg-surface-3'
+                        : 'border-border hover:border-border/80'
+                    }`}
+                  >
+                    <span className="text-lg">🔮</span>
+                    <span className="text-[9px] font-bold text-text-secondary uppercase tracking-wider leading-none">Bracket</span>
+                    <span className="text-xl font-black text-brand font-display mt-0.5">
+                      {selectedUserEntry.stage_points}
+                    </span>
+                    <span className="text-[8px] text-text-muted">(Bracket Pts)</span>
                   </button>
                 </div>
 
                 <div className="flex-1 min-h-[150px] overflow-y-auto space-y-2 pr-1">
                   <div className="text-[10px] font-bold text-text-secondary uppercase tracking-wider mb-2">
-                    {modalTab === 'outcomes' ? 'Outcome Matches' : 'Exact Score Matches'}
+                    {modalTab === 'outcomes' 
+                      ? 'Outcome Matches' 
+                      : modalTab === 'scores' 
+                        ? 'Exact Score Matches' 
+                        : 'Correct Bracket Predictions'}
                   </div>
-                  {isLoadingUserPredictions ? (
+                  {isLoadingUserPredictions || isLoadingUserStagePredictions ? (
                     <div className="flex justify-center items-center py-8">
                       <div className="w-6 h-6 border-2 border-transparent border-t-brand rounded-full animate-spin" />
                     </div>
+                  ) : modalTab === 'bracket' ? (
+                    correctStagePredictions.length === 0 ? (
+                      <div className="text-center py-8 text-text-muted text-xs italic">
+                        No correct bracket predictions yet.
+                      </div>
+                    ) : (
+                      correctStagePredictions.map(({ sp, stageLabel, pts }) => (
+                        <div key={sp.id} className="flex items-center justify-between p-3 bg-surface-2 border border-border/50 rounded-xl text-xs gap-3">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <img src={sp.team.flag_url || 'https://flagcdn.com/w80/un.png'} className="w-8 h-5 object-cover rounded border border-border/30 shadow-sm" />
+                            <div className="flex flex-col">
+                              <span className="font-bold text-text-primary text-xs">{sp.team.name}</span>
+                              <span className="text-[9px] text-text-secondary">{stageLabel}</span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-brand/10 text-brand border border-brand/20">
+                            +{pts} pts
+                          </span>
+                        </div>
+                      ))
+                    )
                   ) : (modalTab === 'outcomes' ? correctOutcomeMatches : correctScoreMatches).length === 0 ? (
                     <div className="text-center py-8 text-text-muted text-xs italic">
                       No matches found in this category.
