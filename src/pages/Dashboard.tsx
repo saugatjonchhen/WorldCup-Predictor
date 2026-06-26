@@ -345,7 +345,7 @@ export default function Dashboard() {
         (!finalMatch.penalty_winner && (finalMatch.home_score ?? 0) > (finalMatch.away_score ?? 0))
       
       championTeam = isHomeWinner ? finalMatch.home_team : finalMatch.away_team
-      championFlag = isHomeWinner ? finalMatch.home_team_info?.flag_url : finalMatch.away_team_info?.flag_url
+      championFlag = isHomeWinner ? (finalMatch.home_team_info?.flag_url ?? null) : (finalMatch.away_team_info?.flag_url ?? null)
     }
 
     function renderBracketMatchCard(matchId: string) {
@@ -424,7 +424,7 @@ export default function Dashboard() {
               <span className={`text-[11px] font-black shrink-0 ${
                 match.status === 'completed' ? (isHomeWinner ? 'text-brand' : 'text-text-secondary') : 'text-text-secondary'
               }`}>
-                {match.status === 'live' ? (match.live_home_score ?? 0) : (match.home_score !== null ? match.home_score : '-')}
+                {match.home_score !== null ? match.home_score : '-'}
               </span>
             </div>
 
@@ -452,7 +452,7 @@ export default function Dashboard() {
               <span className={`text-[11px] font-black shrink-0 ${
                 match.status === 'completed' ? (isAwayWinner ? 'text-brand' : 'text-text-secondary') : 'text-text-secondary'
               }`}>
-                {match.status === 'live' ? (match.live_away_score ?? 0) : (match.away_score !== null ? match.away_score : '-')}
+                {match.away_score !== null ? match.away_score : '-'}
               </span>
             </div>
           </div>
