@@ -38,10 +38,12 @@ interface Prediction {
   user_id: string
   home_score_pred: number
   away_score_pred: number
+  advancing_team?: string | null
   points_earned?: number
   correct_result?: boolean
   correct_goal_diff?: boolean
   exact_score?: boolean
+  correct_advancing?: boolean
 }
 
 const getTooltipBreakdown = (pred: Prediction) => {
@@ -54,11 +56,8 @@ const getTooltipBreakdown = (pred: Prediction) => {
     if (pred.correct_result) breakdown.push({ icon: '🏆', name: 'Outcome', pts: 3 })
     if (pred.correct_goal_diff) breakdown.push({ icon: '📊', name: 'Goal Diff', pts: 2 })
   }
-  if (pred.points_earned && pred.points_earned > 0) {
-    const currentSum = (pred.exact_score ? 10 : 0) + (!pred.exact_score && pred.correct_result ? 3 : 0) + (!pred.exact_score && pred.correct_goal_diff ? 2 : 0)
-    if (pred.points_earned > currentSum) {
-      breakdown.push({ icon: '🔮', name: 'Advancing', pts: pred.points_earned - currentSum })
-    }
+  if (pred.correct_advancing) {
+    breakdown.push({ icon: '🔮', name: 'Winner After Draw', pts: 2 })
   }
   return breakdown
 }
@@ -504,6 +503,11 @@ export default function PoolDetail() {
           <span className="text-[10px] text-text-secondary font-medium">
             Pred: <strong className="text-text-primary font-bold">{pred.home_score_pred} - {pred.away_score_pred}</strong>
           </span>
+          {pred.advancing_team && (
+            <span className="text-[9px] font-bold text-brand">
+              Adv: {pred.advancing_team}
+            </span>
+          )}
           <span className="text-[9px] font-black bg-brand/10 text-brand px-1.5 py-0.5 rounded border border-brand/20">
             +{pred.points_earned ?? 0} pts
           </span>
@@ -661,6 +665,11 @@ export default function PoolDetail() {
                           <span className="text-[10px] text-text-muted">-</span>
                           <span>{pred.away_score_pred}</span>
                         </div>
+                        {pred.advancing_team && (
+                          <div className="mt-1 text-[9px] font-bold text-brand text-right font-sans">
+                            Adv: {pred.advancing_team}
+                          </div>
+                        )}
                         {(match.status === 'completed' || match.status === 'live') && (
                           <div className={`absolute right-full top-1/2 -translate-y-1/2 mr-3 w-44 bg-surface-3 border border-border text-[9px] text-text-primary p-2.5 rounded-xl shadow-xl transition-all duration-150 z-50 text-left font-sans font-normal normal-case ${
                             activeTooltipId === `${match.id}-${member.user_id}`
@@ -1178,6 +1187,11 @@ export default function PoolDetail() {
                                             <span className="text-xs text-text-muted">-</span>
                                             <span>{pred.away_score_pred}</span>
                                           </div>
+                                          {pred.advancing_team && (
+                                            <div className="mt-1 text-[9px] font-bold text-brand text-right font-sans">
+                                              Adv: {pred.advancing_team}
+                                            </div>
+                                          )}
                                           {selectedMatch && (selectedMatch.status === 'completed' || selectedMatch.status === 'live') && (
                                             <div className={`absolute right-full top-1/2 -translate-y-1/2 mr-3 w-44 bg-surface-3 border border-border text-[9px] text-text-primary p-2.5 rounded-xl shadow-xl transition-all duration-150 z-50 text-left font-sans font-normal normal-case ${
                                               activeTooltipId === `${selectedMatch?.id || ''}-${member.user_id}`
@@ -1633,5 +1647,4 @@ export default function PoolDetail() {
     </Layout>
   )
 }
-
 
