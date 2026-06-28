@@ -32,6 +32,7 @@ interface MatchPrediction {
   match_id: string
   home_score_pred: number
   away_score_pred: number
+  advancing_team: string | null
   points_earned: number
   correct_result: boolean
   correct_goal_diff: boolean
@@ -580,6 +581,11 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
                           <span className="text-text-muted font-normal">-</span>
                           <span>{p.away_score_pred}</span>
                         </div>
+                        {p.advancing_team && (
+                          <div className="text-[9px] sm:text-[10px] font-bold text-brand bg-brand/10 border border-brand/20 px-2 py-0.5 rounded-lg">
+                            Adv: {p.advancing_team}
+                          </div>
+                        )}
 
                         {m.status !== 'scheduled' && (
                           <>
@@ -628,6 +634,11 @@ export function UserPredictionsView({ userId, profile, showWarning = false }: Us
                           {p.correct_goal_diff && !p.exact_score && (
                             <span className="px-1.5 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 font-bold text-[8px] sm:text-[9px]">
                               Goal Diff
+                            </span>
+                          )}
+                          {p.correct_advancing && (
+                            <span className="px-1.5 py-0.5 rounded-full bg-brand/10 border border-brand/20 text-brand font-bold text-[8px] sm:text-[9px]">
+                              Advancing
                             </span>
                           )}
                           {p.points_earned === 0 && (

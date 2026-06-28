@@ -45,10 +45,10 @@ export default function Rules() {
       breakDown.push('🎯 Exact Score Match (+5 pts)')
     }
 
-    if (isKnockout && (actualWinner === 'draw' || isKnockout)) {
+    if (isKnockout && predWinner === 'draw' && actualWinner === 'draw') {
       if (predAdvancing === actualAdvancing) {
         pts += 2
-        breakDown.push('🔮 Correct Advancing Team (+2 pts)')
+        breakDown.push('🔮 Correct Winner After Draw (+2 pts)')
       }
     }
 
@@ -134,9 +134,9 @@ export default function Rules() {
                   2 POINTS
                 </span>
               </div>
-              <h3 className="font-display font-bold text-base text-text-primary">Correct Advancing Team</h3>
+              <h3 className="font-display font-bold text-base text-text-primary">Winner After Draw</h3>
               <p className="text-xs text-text-secondary mt-2 leading-relaxed">
-                For knockout stage matches, predict which team advances (even after extra time or penalties).
+                From the Round of 32 onward, if you predict a draw, also pick who advances after extra time or penalties.
               </p>
             </div>
             <div className="mt-4 pt-3 border-t border-border/40 text-[10px] text-text-muted">
@@ -307,10 +307,10 @@ export default function Rules() {
               </div>
 
               {/* Knockout Advancing Options */}
-              {isKnockout && (
+              {isKnockout && predHome === predAway && actualHome === actualAway && (
                 <div className="space-y-3 p-3 bg-surface-2/30 border border-border/50 rounded-xl">
                   <h4 className="text-[10px] uppercase font-black tracking-widest text-text-muted">
-                    Advancing Team
+                    Winner After Draw
                   </h4>
                   
                   <div className="grid grid-cols-2 gap-2 text-xs">

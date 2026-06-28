@@ -19,6 +19,7 @@ interface Match {
   status: string
   home_score: number | null
   away_score: number | null
+  penalty_winner: string | null
   home_team_info?: { flag_url: string } | null
   away_team_info?: { flag_url: string } | null
 }
@@ -29,11 +30,16 @@ interface Prediction {
   user_id: string
   home_score_pred: number
   away_score_pred: number
+  advancing_team: string | null
   profiles?: {
     username: string
     display_name: string | null
     avatar_url: string | null
   }
+}
+
+function isKnockoutStage(match: Match) {
+  return match.stage !== 'group'
 }
 
 export default function MatchDetail() {
@@ -73,6 +79,7 @@ export default function MatchDetail() {
   // Local state for score input editing
   const [homeInput, setHomeInput] = useState('')
   const [awayInput, setAwayInput] = useState('')
+  const [advancingTeamInput, setAdvancingTeamInput] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
@@ -112,6 +119,7 @@ export default function MatchDetail() {
       if (data) {
         setHomeInput(String(data.home_score_pred))
         setAwayInput(String(data.away_score_pred))
+        setAdvancingTeamInput(data.advancing_team)
       }
       return data
     },
@@ -131,6 +139,7 @@ export default function MatchDetail() {
           user_id,
           home_score_pred,
           away_score_pred,
+          advancing_team,
           profiles (
             username,
             display_name,
@@ -152,9 +161,14 @@ export default function MatchDetail() {
 
       const homeVal = parseInt(homeInput)
       const awayVal = parseInt(awayInput)
+      const needsAdvancingTeam = match ? isKnockoutStage(match) && homeVal === awayVal : false
 
       if (isNaN(homeVal) || isNaN(awayVal) || homeVal < 0 || awayVal < 0) {
         throw new Error('Please enter valid, non-negative scores.')
+      }
+
+      if (needsAdvancingTeam && !advancingTeamInput) {
+        throw new Error('Please choose who advances after the draw.')
       }
 
       const { data, error } = await supabase.from('predictions').upsert(
@@ -163,6 +177,7 @@ export default function MatchDetail() {
           match_id: matchId,
           home_score_pred: homeVal,
           away_score_pred: awayVal,
+          advancing_team: needsAdvancingTeam ? advancingTeamInput : null,
         },
         { onConflict: 'user_id,match_id' }
       )
@@ -216,6 +231,9 @@ export default function MatchDetail() {
   const deadlineTime = kickoffDate.getTime() - 2 * 60 * 60 * 1000
   const isLocked = new Date().getTime() > deadlineTime || match.status === 'live' || match.status === 'completed'
   const hasKickedOff = kickoffDate < new Date()
+  const homeVal = parseInt(homeInput)
+  const awayVal = parseInt(awayInput)
+  const showDrawWinnerPicker = isKnockoutStage(match) && !isNaN(homeVal) && !isNaN(awayVal) && homeVal === awayVal
 
   // Format kickoff time to local timezone with GMT offset
   function formatLocalTime(timeStr: string) {
@@ -325,6 +343,11 @@ export default function MatchDetail() {
                     <p className="text-3xl font-black text-brand mt-2">
                       {userPrediction.home_score_pred} - {userPrediction.away_score_pred}
                     </p>
+                    {userPrediction.advancing_team && (
+                      <p className="mt-2 text-xs font-bold text-text-secondary">
+                        Winner after draw: <span className="text-brand">{userPrediction.advancing_team}</span>
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-text-secondary">You did not make a prediction for this match.</p>
@@ -358,9 +381,36 @@ export default function MatchDetail() {
                   </div>
                 </div>
 
+                {showDrawWinnerPicker && (
+                  <div className="rounded-xl border border-brand/20 bg-brand/5 p-3">
+                    <div className="text-[10px] font-black uppercase tracking-wider text-brand mb-2">
+                      Winner after draw
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[match.home_team, match.away_team].map((team) => (
+                        <button
+                          key={team}
+                          type="button"
+                          onClick={() => setAdvancingTeamInput(team)}
+                          className={`min-h-10 rounded-lg border px-3 text-xs font-bold transition-colors ${
+                            advancingTeamInput === team
+                              ? 'border-brand bg-brand text-text-inverse shadow-brand'
+                              : 'border-border bg-surface-2 text-text-secondary hover:text-text-primary hover:border-brand/50'
+                          }`}
+                        >
+                          {team}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[10px] font-semibold text-text-secondary">
+                      +2 pts if this team advances after extra time or penalties.
+                    </p>
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  disabled={submitMutation.isPending}
+                  disabled={submitMutation.isPending || (showDrawWinnerPicker && !advancingTeamInput)}
                   className="w-full btn btn-primary py-3 font-bold text-sm shadow-brand"
                 >
                   {submitMutation.isPending ? 'Saving...' : 'Save Prediction'}
@@ -408,6 +458,7 @@ export default function MatchDetail() {
 
                     <span className="font-black text-brand text-xs">
                       {pred.home_score_pred} - {pred.away_score_pred}
+                      {pred.advancing_team ? ` • ${pred.advancing_team}` : ''}
                     </span>
                   </div>
                 ))}

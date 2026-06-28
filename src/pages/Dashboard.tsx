@@ -32,6 +32,17 @@ interface Prediction {
   match_id: string
   home_score_pred: number
   away_score_pred: number
+  advancing_team: string | null
+}
+
+type EditingPrediction = {
+  home: number
+  away: number
+  advancingTeam: string | null
+}
+
+function isKnockoutStage(match: Match) {
+  return match.stage !== 'group'
 }
 
 export default function Dashboard() {
@@ -142,7 +153,7 @@ export default function Dashboard() {
       if (!user?.id) return []
       const { data, error } = await supabase
         .from('predictions')
-        .select('match_id, home_score_pred, away_score_pred')
+        .select('match_id, home_score_pred, away_score_pred, advancing_team')
         .eq('user_id', user.id)
 
       if (error) throw error
@@ -192,7 +203,7 @@ export default function Dashboard() {
 
   // Local state for predictions currently being edited
   const [editingPredictions, setEditingPredictions] = useState<{
-    [matchId: string]: { home: number; away: number }
+    [matchId: string]: EditingPrediction
   }>({})
 
   // Mutation to submit prediction
@@ -201,10 +212,12 @@ export default function Dashboard() {
       matchId,
       homeScore,
       awayScore,
+      advancingTeam,
     }: {
       matchId: string
       homeScore: number
       awayScore: number
+      advancingTeam: string | null
     }) => {
       if (!user?.id) return
 
@@ -214,6 +227,7 @@ export default function Dashboard() {
           match_id: matchId,
           home_score_pred: homeScore,
           away_score_pred: awayScore,
+          advancing_team: advancingTeam,
         },
         { onConflict: 'user_id,match_id' }
       )
@@ -231,16 +245,43 @@ export default function Dashboard() {
     const score = parseInt(val)
     if (isNaN(score) || score < 0) return
 
+    const match = matches.find((m) => m.id === matchId)
+    const savedPrediction = predictionMap.get(matchId)
+
     const currentEdit = editingPredictions[matchId] || {
-      home: predictionMap.get(matchId)?.home_score_pred ?? 0,
-      away: predictionMap.get(matchId)?.away_score_pred ?? 0,
+      home: savedPrediction?.home_score_pred ?? 0,
+      away: savedPrediction?.away_score_pred ?? 0,
+      advancingTeam: savedPrediction?.advancing_team ?? null,
+    }
+    const nextEdit = {
+      ...currentEdit,
+      [side]: score,
+    }
+    const isDrawAfterChange = nextEdit.home === nextEdit.away
+    const shouldKeepAdvancingTeam = match ? isKnockoutStage(match) && isDrawAfterChange : isDrawAfterChange
+
+    setEditingPredictions({
+      ...editingPredictions,
+      [matchId]: {
+        ...nextEdit,
+        advancingTeam: shouldKeepAdvancingTeam ? nextEdit.advancingTeam : null,
+      },
+    })
+  }
+
+  function handleAdvancingTeamChange(matchId: string, advancingTeam: string) {
+    const savedPrediction = predictionMap.get(matchId)
+    const currentEdit = editingPredictions[matchId] || {
+      home: savedPrediction?.home_score_pred ?? 0,
+      away: savedPrediction?.away_score_pred ?? 0,
+      advancingTeam: savedPrediction?.advancing_team ?? null,
     }
 
     setEditingPredictions({
       ...editingPredictions,
       [matchId]: {
         ...currentEdit,
-        [side]: score,
+        advancingTeam,
       },
     })
   }
@@ -249,11 +290,17 @@ export default function Dashboard() {
   async function savePrediction(matchId: string) {
     const edit = editingPredictions[matchId]
     if (!edit) return
+    const match = matches.find((m) => m.id === matchId)
+    const isDrawPrediction = edit.home === edit.away
+    const advancingTeam = match && isKnockoutStage(match) && isDrawPrediction ? edit.advancingTeam : null
+
+    if (match && isKnockoutStage(match) && isDrawPrediction && !advancingTeam) return
 
     await submitPredictionMutation.mutateAsync({
       matchId,
       homeScore: edit.home,
       awayScore: edit.away,
+      advancingTeam,
     })
 
     // Remove from editing state
@@ -516,6 +563,8 @@ export default function Dashboard() {
               const currentEdit = editingPredictions[match.id]
               const displayHome = currentEdit !== undefined ? currentEdit.home : (savedPred?.home_score_pred ?? '')
               const displayAway = currentEdit !== undefined ? currentEdit.away : (savedPred?.away_score_pred ?? '')
+              const selectedAdvancingTeam = currentEdit !== undefined ? currentEdit.advancingTeam : (savedPred?.advancing_team ?? null)
+              const shouldShowDrawWinner = isKnockoutStage(match) && displayHome !== '' && displayAway !== '' && displayHome === displayAway
               const hasChanges = currentEdit !== undefined
 
               const deadlineBadge = getDeadlineLabel(match.kickoff_time, match.status)
@@ -591,6 +640,7 @@ export default function Dashboard() {
                           {isSaved && (
                             <div className="text-[10px] font-bold text-brand bg-brand/10 px-2.5 py-0.5 rounded-md border border-brand/20">
                               Pred: {savedPred?.home_score_pred} - {savedPred?.away_score_pred}
+                              {savedPred?.advancing_team ? ` • Adv: ${savedPred.advancing_team}` : ''}
                             </div>
                           )}
                         </div>
@@ -637,6 +687,33 @@ export default function Dashboard() {
                     </div>
                   </div>
 
+                  {shouldShowDrawWinner && (
+                    <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-3">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-brand mb-2">
+                        Winner after draw
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[match.home_team, match.away_team].map((team) => (
+                          <button
+                            key={team}
+                            type="button"
+                            onClick={() => handleAdvancingTeamChange(match.id, team)}
+                            className={`min-h-9 rounded-lg border px-2 text-[11px] font-bold transition-colors ${
+                              selectedAdvancingTeam === team
+                                ? 'border-brand bg-brand text-text-inverse shadow-brand'
+                                : 'border-border bg-surface-2 text-text-secondary hover:text-text-primary hover:border-brand/50'
+                            }`}
+                          >
+                            {team}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[10px] font-semibold text-text-secondary">
+                        +2 pts if this team advances after extra time or penalties.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Save button & link to details */}
                   <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
                     <div className="text-[10px] font-semibold text-text-secondary">
@@ -660,7 +737,7 @@ export default function Dashboard() {
                       {!isLocked && hasChanges && (
                         <button
                           onClick={() => savePrediction(match.id)}
-                          disabled={submitPredictionMutation.isPending}
+                          disabled={submitPredictionMutation.isPending || (shouldShowDrawWinner && !selectedAdvancingTeam)}
                           className="btn btn-primary btn-sm py-1 px-3 text-xs font-bold shadow-brand"
                         >
                           {submitPredictionMutation.isPending ? 'Saving...' : 'Save'}
@@ -934,6 +1011,8 @@ export default function Dashboard() {
               const currentEdit = editingPredictions[match.id]
               const displayHome = currentEdit !== undefined ? currentEdit.home : (savedPred?.home_score_pred ?? '')
               const displayAway = currentEdit !== undefined ? currentEdit.away : (savedPred?.away_score_pred ?? '')
+              const selectedAdvancingTeam = currentEdit !== undefined ? currentEdit.advancingTeam : (savedPred?.advancing_team ?? null)
+              const shouldShowDrawWinner = isKnockoutStage(match) && displayHome !== '' && displayAway !== '' && displayHome === displayAway
               const hasChanges = currentEdit !== undefined
 
               const deadlineBadge = getDeadlineLabel(match.kickoff_time, match.status)
@@ -1006,6 +1085,7 @@ export default function Dashboard() {
                           {isSaved && (
                             <div className="text-[10px] font-bold text-brand bg-brand/10 px-2.5 py-0.5 rounded-md border border-brand/20">
                               Pred: {savedPred?.home_score_pred} - {savedPred?.away_score_pred}
+                              {savedPred?.advancing_team ? ` • Adv: ${savedPred.advancing_team}` : ''}
                             </div>
                           )}
                         </div>
@@ -1049,6 +1129,33 @@ export default function Dashboard() {
                     </div>
                   </div>
 
+                  {shouldShowDrawWinner && (
+                    <div className="mt-4 rounded-xl border border-brand/20 bg-brand/5 p-3">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-brand mb-2">
+                        Winner after draw
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[match.home_team, match.away_team].map((team) => (
+                          <button
+                            key={team}
+                            type="button"
+                            onClick={() => handleAdvancingTeamChange(match.id, team)}
+                            className={`min-h-9 rounded-lg border px-2 text-[11px] font-bold transition-colors ${
+                              selectedAdvancingTeam === team
+                                ? 'border-brand bg-brand text-text-inverse shadow-brand'
+                                : 'border-border bg-surface-2 text-text-secondary hover:text-text-primary hover:border-brand/50'
+                            }`}
+                          >
+                            {team}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[10px] font-semibold text-text-secondary">
+                        +2 pts if this team advances after extra time or penalties.
+                      </p>
+                    </div>
+                  )}
+
                   {/* Save Prediction Button & prediction status */}
                   <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between">
                     <div className="text-[10px] font-semibold text-text-secondary">
@@ -1068,7 +1175,7 @@ export default function Dashboard() {
                     {!isLocked && hasChanges && (
                       <button
                         onClick={() => savePrediction(match.id)}
-                        disabled={submitPredictionMutation.isPending}
+                        disabled={submitPredictionMutation.isPending || (shouldShowDrawWinner && !selectedAdvancingTeam)}
                         className="btn btn-primary btn-sm py-1.5 px-3.5 text-xs font-bold shadow-brand"
                       >
                         {submitPredictionMutation.isPending ? 'Saving...' : 'Save'}
