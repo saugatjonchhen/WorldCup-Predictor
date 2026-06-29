@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Layout } from '@/components/Layout'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
@@ -20,6 +20,26 @@ interface StagePrediction {
   team_id: string
 }
 
+interface LockedRo32Match {
+  external_match_id: string
+  home_team_ext_id: string | null
+  away_team_ext_id: string | null
+  home_team: string
+  away_team: string
+  winner_team_ext_id: string | null
+}
+
+interface BracketLockStatus {
+  stage_deadlines: {
+    round_of_16: string
+    qf: string
+    sf: string
+    final: string
+    winner: string
+  }
+  locked_ro32_matches: LockedRo32Match[]
+}
+
 const STAGES = [
   { id: 'round_of_16', label: 'Round of 16', limit: 16, icon: '⚽', points: '2 pts per correct team' },
   { id: 'qf', label: 'Quarterfinals', limit: 8, icon: '🏆', points: '2 pts per correct team' },
@@ -34,6 +54,7 @@ export default function Bracket() {
   const [activeStage, setActiveStage] = useState<string>('round_of_16')
   const [searchQuery, setSearchQuery] = useState('')
   const [groupFilter, setGroupFilter] = useState('all')
+  const [timeLeft, setTimeLeft] = useState('')
 
   // Selections state: { [stageId]: Set(team_external_id) }
   const [selections, setSelections] = useState<{ [stage: string]: Set<string> }>({
@@ -52,7 +73,6 @@ export default function Bracket() {
         .from('teams')
         .select('*')
         .order('name', { ascending: true })
-
       if (error) throw error
       return data as Team[]
     },
@@ -67,68 +87,117 @@ export default function Bracket() {
         .from('stage_predictions')
         .select('id, stage, team_id')
         .eq('user_id', user.id)
-
       if (error) throw error
       return data as StagePrediction[]
     },
     enabled: !!user?.id,
   })
 
-  // 3. Fetch First Match Kickoff of Round of 32 for Deadline
-  const { data: lockTime, isLoading: isLoadingDeadline } = useQuery<Date | null>({
-    queryKey: ['bracket-lock-time'],
+  // 3. Fetch per-stage bracket lock status (deadlines + completed Ro32 matches)
+  const { data: lockStatus, isLoading: isLoadingLockStatus } = useQuery<BracketLockStatus>({
+    queryKey: ['bracket-lock-status'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_bracket_lock_status')
+      if (error) throw error
+      return data as BracketLockStatus
+    },
+    // Refresh every 30 s so deadlines stay current as Ro32 matches complete
+    refetchInterval: 30_000,
+  })
+
+  // 4. Fetch Ro32-qualified team IDs (teams assigned to Ro32 matches)
+  const { data: ro32TeamIds = new Set<string>(), isLoading: isLoadingRo32 } = useQuery<Set<string>>({
+    queryKey: ['ro32-team-ids'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('matches')
-        .select('kickoff_time')
+        .select('home_team_ext_id, away_team_ext_id')
         .eq('stage', 'round_of_32')
-        .order('kickoff_time', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-
       if (error) throw error
-      if (!data) return null
-
-      // Deadline is 2 hours before the first match kickoff of Round of 32
-      const kickoff = new Date(data.kickoff_time)
-      return new Date(kickoff.getTime() - 2 * 60 * 60 * 1000)
+      const ids = new Set<string>()
+      data?.forEach((m: { home_team_ext_id: string | null; away_team_ext_id: string | null }) => {
+        if (m.home_team_ext_id) ids.add(m.home_team_ext_id)
+        if (m.away_team_ext_id) ids.add(m.away_team_ext_id)
+      })
+      return ids
     },
+    refetchInterval: 60_000,
   })
 
-  // Calculate if submissions are locked
-  const [isLocked, setIsLocked] = useState(false)
-  const [timeLeft, setTimeLeft] = useState('')
+  // ── Derived lock state ──────────────────────────────────────────────────────
+
+  // Per-stage lock info: { deadline: Date | null, isLocked: boolean }
+  const stageLockInfo = useMemo(() => {
+    const deadlines = lockStatus?.stage_deadlines
+    const now = new Date()
+    return Object.fromEntries(
+      STAGES.map(s => {
+        const raw = deadlines?.[s.id as keyof typeof deadlines]
+        const deadline = raw ? new Date(raw) : null
+        return [s.id, { deadline, isLocked: deadline ? deadline <= now : true }]
+      })
+    )
+  }, [lockStatus])
+
+  // Set of team ext IDs that WON a completed Ro32 match → their Ro16 slot is locked/preserved
+  const ro16LockedWinners = useMemo(() => {
+    const ids = new Set<string>()
+    lockStatus?.locked_ro32_matches?.forEach(m => {
+      if (m.winner_team_ext_id) ids.add(m.winner_team_ext_id)
+    })
+    return ids
+  }, [lockStatus])
+
+  // Set of ALL team ext IDs from completed Ro32 matches (winners + losers → slot determined)
+  const ro16SlotDetermined = useMemo(() => {
+    const ids = new Set<string>()
+    lockStatus?.locked_ro32_matches?.forEach(m => {
+      if (m.home_team_ext_id) ids.add(m.home_team_ext_id)
+      if (m.away_team_ext_id) ids.add(m.away_team_ext_id)
+    })
+    return ids
+  }, [lockStatus])
+
+  // Convenience helpers
+  const isRo16Winner = (teamExtId: string) => ro16LockedWinners.has(teamExtId)
+  const isRo16SlotDetermined = (teamExtId: string) => ro16SlotDetermined.has(teamExtId)
+
+  // ── Countdown timer for active stage ───────────────────────────────────────
 
   useEffect(() => {
-    if (!lockTime) return
-    const interval = setInterval(() => {
-      const now = new Date().getTime()
-      const diff = lockTime.getTime() - now
+    const deadline = stageLockInfo[activeStage]?.deadline
+    if (!deadline) {
+      setTimeLeft('Unknown')
+      return
+    }
 
+    const tick = () => {
+      const diff = deadline.getTime() - Date.now()
       if (diff <= 0) {
-        setIsLocked(true)
         setTimeLeft('Locked')
-        clearInterval(interval)
-      } else {
-        setIsLocked(false)
-        const hours = Math.floor(diff / (1000 * 60 * 60))
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-        setTimeLeft(`${hours}h ${minutes}m ${seconds}s`)
+        return
       }
-    }, 1000)
+      const days = Math.floor(diff / 86_400_000)
+      const hours = Math.floor((diff % 86_400_000) / 3_600_000)
+      const mins = Math.floor((diff % 3_600_000) / 60_000)
+      const secs = Math.floor((diff % 60_000) / 1000)
+      setTimeLeft(days > 0 ? `${days}d ${hours}h ${mins}m` : `${hours}h ${mins}m ${secs}s`)
+    }
 
+    tick()
+    const interval = setInterval(tick, 1000)
     return () => clearInterval(interval)
-  }, [lockTime])
+  }, [activeStage, stageLockInfo])
 
-  // Populate local selections state when predictions are loaded
+  // ── Populate selections from DB predictions ─────────────────────────────────
+
   useEffect(() => {
-    const newSelections = {
-      round_of_16: new Set<string>(),
-      qf: new Set<string>(),
-      sf: new Set<string>(),
-      final: new Set<string>(),
-      winner: new Set<string>(),
+    const newSelections: { [stage: string]: Set<string> } = {
+      round_of_16: new Set(),
+      qf: new Set(),
+      sf: new Set(),
+      final: new Set(),
+      winner: new Set(),
     }
     userPredictions.forEach((pred) => {
       const stage = pred.stage as keyof typeof newSelections
@@ -139,10 +208,23 @@ export default function Bracket() {
     setSelections(newSelections)
   }, [userPredictions])
 
-  // Toggle selection handler
+  // ── Toggle selection ────────────────────────────────────────────────────────
+
   const handleToggleTeam = (teamExtId: string) => {
-    if (isLocked) {
-      toast.error('Submissions are locked for the tournament.')
+    const stageInfo = stageLockInfo[activeStage]
+
+    if (stageInfo?.isLocked) {
+      toast.error('Predictions for this stage are locked.')
+      return
+    }
+
+    // Ro16: prevent toggling slots already determined by a completed Ro32 match
+    if (activeStage === 'round_of_16' && isRo16SlotDetermined(teamExtId)) {
+      if (isRo16Winner(teamExtId)) {
+        toast.error('This slot is locked — this team has already advanced to the Round of 16.')
+      } else {
+        toast.error('This team was eliminated in the Round of 32.')
+      }
       return
     }
 
@@ -153,45 +235,61 @@ export default function Bracket() {
       currentSet.delete(teamExtId)
     } else {
       if (currentSet.size >= currentStageLimit) {
-        toast.warning(`You can only select up to ${currentStageLimit} teams for the ${activeStage} stage.`)
+        toast.warning(`You can only select up to ${currentStageLimit} teams for this stage.`)
         return
       }
       currentSet.add(teamExtId)
     }
 
-    setSelections({
-      ...selections,
-      [activeStage]: currentSet,
-    })
+    setSelections({ ...selections, [activeStage]: currentSet })
   }
 
-  // Mutation to save selections
+  // ── Save mutation ───────────────────────────────────────────────────────────
+
   const saveSelectionsMutation = useMutation({
     mutationFn: async ({ stage, teamIds }: { stage: string; teamIds: string[] }) => {
       if (!user?.id) throw new Error('Not authenticated')
 
-      // Step 1: Delete previous predictions for this stage
-      const { error: deleteError } = await supabase
-        .from('stage_predictions')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('stage', stage)
-
-      if (deleteError) throw deleteError
-
-      // Step 2: Insert new predictions
-      if (teamIds.length > 0) {
-        const insertData = teamIds.map((tid) => ({
-          user_id: user.id,
-          stage: stage,
-          team_id: tid,
-        }))
-
-        const { error: insertError } = await supabase
+      if (stage === 'round_of_16') {
+        // Delete only unlocked (non-winner) predictions for Ro16
+        const lockedIds = [...ro16LockedWinners]
+        const deleteQuery = supabase
           .from('stage_predictions')
-          .insert(insertData)
+          .delete()
+          .eq('user_id', user.id)
+          .eq('stage', stage)
 
-        if (insertError) throw insertError
+        if (lockedIds.length > 0) {
+          const { error: deleteError } = await deleteQuery.not('team_id', 'in', `(${lockedIds.join(',')})`)
+          if (deleteError) throw deleteError
+        } else {
+          const { error: deleteError } = await deleteQuery
+          if (deleteError) throw deleteError
+        }
+
+        // Insert only unlocked (non-winner) new selections
+        const unlockedToInsert = teamIds.filter(id => !ro16LockedWinners.has(id))
+        if (unlockedToInsert.length > 0) {
+          const { error: insertError } = await supabase
+            .from('stage_predictions')
+            .insert(unlockedToInsert.map(tid => ({ user_id: user.id, stage, team_id: tid })))
+          if (insertError) throw insertError
+        }
+      } else {
+        // Normal full replace for other stages
+        const { error: deleteError } = await supabase
+          .from('stage_predictions')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('stage', stage)
+        if (deleteError) throw deleteError
+
+        if (teamIds.length > 0) {
+          const { error: insertError } = await supabase
+            .from('stage_predictions')
+            .insert(teamIds.map(tid => ({ user_id: user.id, stage, team_id: tid })))
+          if (insertError) throw insertError
+        }
       }
     },
     onSuccess: () => {
@@ -205,35 +303,42 @@ export default function Bracket() {
   })
 
   const handleSave = () => {
-    if (isLocked) {
-      toast.error('Predictions are locked.')
+    if (stageLockInfo[activeStage]?.isLocked) {
+      toast.error('Predictions are locked for this stage.')
       return
     }
-
-    const currentSelections = Array.from(selections[activeStage])
-
     saveSelectionsMutation.mutate({
       stage: activeStage,
-      teamIds: currentSelections,
+      teamIds: Array.from(selections[activeStage]),
     })
   }
 
-  const isLoading = isLoadingTeams || isLoadingPreds || isLoadingDeadline
-  const activeLimit = STAGES.find(s => s.id === activeStage)?.limit ?? 0
-  const activeCount = selections[activeStage]?.size ?? 0
+  // ── Derived UI values ───────────────────────────────────────────────────────
 
-  // Filter teams list
+  const isLoading = isLoadingTeams || isLoadingPreds || isLoadingLockStatus || isLoadingRo32
+  const activeStageInfo = STAGES.find(s => s.id === activeStage)
+  const activeLimit = activeStageInfo?.limit ?? 0
+  const activeCount = selections[activeStage]?.size ?? 0
+  const activeIsLocked = stageLockInfo[activeStage]?.isLocked ?? true
+
+  // For Ro16: filter to Ro32-qualified teams only (fallback: show all if not yet populated)
   const filteredTeams = teams.filter((t) => {
-    const matchesSearch = t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    if (activeStage === 'round_of_16' && ro32TeamIds.size > 0) {
+      if (!ro32TeamIds.has(t.external_team_id)) return false
+    }
+    const matchesSearch =
+      t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       t.fifa_code.toLowerCase().includes(searchQuery.toLowerCase())
     const matchesGroup = groupFilter === 'all' || t.group_name === groupFilter
     return matchesSearch && matchesGroup
   })
 
+  // ── Render ──────────────────────────────────────────────────────────────────
+
   return (
     <Layout>
       <div className="space-y-8">
-        {/* Header section */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-border/40 pb-6">
           <div>
             <h1 className="text-3xl font-extrabold font-display text-gradient">
@@ -244,22 +349,24 @@ export default function Bracket() {
             </p>
           </div>
 
-          {/* Deadline Countdown widget */}
+          {/* Per-stage deadline countdown */}
           <div className="glass px-5 py-3 rounded-2xl border border-border flex items-center gap-3">
-            <span className="text-2xl">⏳</span>
+            <span className="text-2xl">{activeIsLocked ? '🔒' : '⏳'}</span>
             <div>
               <div className="text-[10px] uppercase font-bold tracking-wider text-text-secondary">
-                Prediction Deadline
+                {activeStageInfo?.label} Deadline
               </div>
-              <div className={`text-base font-black ${isLocked ? 'text-live animate-pulse' : 'text-brand'}`}>
-                {isLocked ? 'Predictions Locked' : timeLeft || 'Loading...'}
+              <div className={`text-base font-black ${activeIsLocked ? 'text-live animate-pulse' : 'text-brand'}`}>
+                {activeIsLocked ? 'Predictions Locked' : timeLeft || 'Loading...'}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Stage selection sidebar/tabs */}
+        {/* Stage selection sidebar + main content */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+
+          {/* Sidebar: stage tabs */}
           <div className="space-y-3 lg:col-span-1">
             <h2 className="text-xs font-black uppercase tracking-widest text-text-muted mb-2 px-1">
               Select Stage
@@ -267,60 +374,110 @@ export default function Bracket() {
             <div className="flex flex-row lg:flex-col overflow-x-auto gap-2 pb-2 lg:pb-0">
               {STAGES.map((s) => {
                 const isCompleted = selections[s.id]?.size === s.limit
+                const stageLocked = stageLockInfo[s.id]?.isLocked ?? true
                 return (
                   <button
                     key={s.id}
                     onClick={() => setActiveStage(s.id)}
-                    className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left font-bold text-xs transition-all whitespace-nowrap lg:whitespace-normal shrink-0 lg:shrink-1 ${activeStage === s.id
+                    className={`flex items-center justify-between gap-3 px-4 py-3 rounded-xl border text-left font-bold text-xs transition-all whitespace-nowrap lg:whitespace-normal shrink-0 lg:shrink-1 ${
+                      activeStage === s.id
                         ? 'bg-brand border-brand text-text-inverse shadow-brand'
                         : 'bg-surface-2/40 border-border/80 text-text-secondary hover:text-text-primary hover:bg-surface-3'
-                      }`}
+                    }`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-sm">{s.icon}</span>
                       <span>{s.label}</span>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeStage === s.id
-                        ? 'bg-white/20 text-white'
-                        : isCompleted
-                          ? 'bg-brand/10 text-brand'
-                          : 'bg-surface-3 text-text-secondary'
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px]">{stageLocked ? '🔒' : '🔓'}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                        activeStage === s.id
+                          ? 'bg-white/20 text-white'
+                          : isCompleted
+                            ? 'bg-brand/10 text-brand'
+                            : 'bg-surface-3 text-text-secondary'
                       }`}>
-                      {selections[s.id]?.size} / {s.limit}
-                    </span>
+                        {selections[s.id]?.size} / {s.limit}
+                      </span>
+                    </div>
                   </button>
                 )
               })}
             </div>
 
-            {/* Point values description */}
+            {/* Point value reference */}
             <div className="hidden lg:block bg-surface-2/30 border border-border/60 p-4 rounded-2xl text-xs space-y-2.5 mt-6">
               <div className="font-bold text-text-primary">✨ Stage Point System</div>
               {STAGES.map(s => (
                 <div key={s.id} className="flex justify-between text-text-secondary">
                   <span>{s.label}</span>
-                  <span className="font-semibold text-brand-glow">{s.points.replace(' per correct pick', '').replace(' for correct pick', '')}</span>
+                  <span className="font-semibold text-brand-glow">
+                    {s.points.replace(' per correct pick', '').replace(' for correct pick', '')}
+                  </span>
                 </div>
               ))}
             </div>
+
+            {/* Locking rules note */}
+            <div className="hidden lg:block bg-surface-2/30 border border-border/60 p-4 rounded-2xl text-xs space-y-2 mt-2">
+              <div className="font-bold text-text-primary">📋 Lock Schedule</div>
+              <div className="text-text-muted space-y-1">
+                <p><span className="text-text-secondary font-semibold">Ro16</span> — 1h before next Ro32 match</p>
+                <p><span className="text-text-secondary font-semibold">QF / SF / Final / 🏆</span> — 1 day after Ro16 deadline</p>
+              </div>
+            </div>
           </div>
 
-          {/* Teams list and search */}
+          {/* Main content: team picker */}
           <div className="lg:col-span-3 space-y-6">
-            {/* Selected Teams on Top */}
+
+            {/* Locked stage banner */}
+            {activeIsLocked && !isLoading && (
+              <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-5 py-4">
+                <span className="text-2xl shrink-0">🔒</span>
+                <div>
+                  <div className="font-black text-amber-400 text-sm">Predictions Locked</div>
+                  <div className="text-amber-500/70 text-xs font-medium mt-0.5">
+                    The deadline for <span className="font-bold">{activeStageInfo?.label}</span> predictions has passed.
+                    Your current selections are saved.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Ro16 locked slot info banner */}
+            {activeStage === 'round_of_16' && !activeIsLocked && ro16LockedWinners.size > 0 && (
+              <div className="flex items-start gap-3 bg-brand/5 border border-brand/20 rounded-2xl px-5 py-3">
+                <span className="text-lg shrink-0 mt-0.5">ℹ️</span>
+                <div className="text-xs">
+                  <span className="font-black text-text-primary">
+                    {ro16LockedWinners.size} slot{ro16LockedWinners.size > 1 ? 's' : ''} locked
+                  </span>
+                  <span className="text-text-secondary font-medium">
+                    {' '}— teams that advanced from a completed Round of 32 match are preserved.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Selected Teams panel */}
             {!isLoading && (
               <div className="bg-surface-2/20 border border-border/60 rounded-2xl p-4 space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="text-xs font-black uppercase tracking-widest text-text-muted">
                     Your Selections ({activeCount} / {activeLimit})
                   </h3>
-                  {activeCount > 0 && !isLocked && (
+                  {activeCount > 0 && !activeIsLocked && (
                     <button
                       onClick={() => {
-                        setSelections({
-                          ...selections,
-                          [activeStage]: new Set(),
-                        })
+                        // Keep locked winners, clear the rest
+                        const preserved = new Set(
+                          Array.from(selections[activeStage]).filter(id =>
+                            activeStage === 'round_of_16' ? ro16LockedWinners.has(id) : false
+                          )
+                        )
+                        setSelections({ ...selections, [activeStage]: preserved })
                       }}
                       className="text-text-muted hover:text-live text-[10px] font-bold uppercase tracking-wider transition-colors"
                     >
@@ -333,25 +490,35 @@ export default function Bracket() {
                   className="grid gap-2"
                   style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))' }}
                 >
-                  {/* Render selected teams first */}
+                  {/* Selected teams */}
                   {Array.from(selections[activeStage] || []).map((teamId) => {
                     const team = teams.find(t => t.external_team_id === teamId)
                     if (!team) return null
+                    const slotLocked = activeStage === 'round_of_16' && isRo16Winner(teamId)
                     return (
                       <div
                         key={team.id}
-                        className="glass px-2 py-2 rounded-xl border border-brand/50 bg-brand/5 flex flex-col items-center justify-center gap-1.5 text-xs font-bold text-text-primary relative group text-center"
+                        className={`glass px-2 py-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 text-xs font-bold text-text-primary relative group text-center ${
+                          slotLocked
+                            ? 'border-amber-500/50 bg-amber-500/5'
+                            : 'border-brand/50 bg-brand/5'
+                        }`}
                       >
                         <img
                           src={team.flag_url ?? 'https://flagcdn.com/w80/un.png'}
                           alt={team.name}
                           className="w-8 h-5 object-cover rounded border border-border/40 shrink-0"
-                          onError={(e) => {
-                            e.currentTarget.src = 'https://flagcdn.com/w80/un.png'
-                          }}
+                          onError={(e) => { e.currentTarget.src = 'https://flagcdn.com/w80/un.png' }}
                         />
                         <span className="truncate text-[11px] w-full">{team.name}</span>
-                        {!isLocked && (
+                        {slotLocked ? (
+                          <span
+                            className="absolute top-1 right-1 text-amber-400 text-[9px]"
+                            title="Slot locked — team has advanced from Ro32"
+                          >
+                            🔒
+                          </span>
+                        ) : !activeIsLocked ? (
                           <button
                             onClick={() => handleToggleTeam(team.external_team_id)}
                             className="absolute top-1 right-1 text-text-muted hover:text-live transition-colors p-0.5 shrink-0"
@@ -359,12 +526,12 @@ export default function Bracket() {
                           >
                             ✕
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     )
                   })}
 
-                  {/* Render empty slots */}
+                  {/* Empty slots */}
                   {Array.from({ length: Math.max(0, activeLimit - activeCount) }).map((_, idx) => (
                     <div
                       key={`empty-${idx}`}
@@ -377,9 +544,9 @@ export default function Bracket() {
               </div>
             )}
 
+            {/* Search / filter / save bar */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-2/40 p-4 border border-border/80 rounded-2xl">
               <div className="flex flex-wrap items-center gap-4 flex-1">
-                {/* Search */}
                 <input
                   type="text"
                   placeholder="Search team..."
@@ -387,8 +554,6 @@ export default function Bracket() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="bg-surface-2 border border-border rounded-xl px-4 py-2 text-xs font-bold text-text-primary focus:border-brand focus:outline-none transition-colors w-full md:w-48 placeholder:text-text-muted"
                 />
-
-                {/* Filter */}
                 <select
                   value={groupFilter}
                   onChange={(e) => setGroupFilter(e.target.value)}
@@ -399,26 +564,32 @@ export default function Bracket() {
                     <option key={g} value={g}>Group {g}</option>
                   ))}
                 </select>
+                {activeStage === 'round_of_16' && ro32TeamIds.size > 0 && (
+                  <span className="text-[10px] font-bold text-text-muted bg-surface-3 px-2 py-1 rounded-lg border border-border/60">
+                    {ro32TeamIds.size} Ro32-qualified teams
+                  </span>
+                )}
               </div>
 
-              {/* Save predictions */}
               <div className="flex items-center gap-3">
                 <span className="text-xs font-bold text-text-secondary whitespace-nowrap">
                   {activeCount} / {activeLimit} Selected
                 </span>
                 <button
                   onClick={handleSave}
-                  disabled={saveSelectionsMutation.isPending || isLocked}
-                  className={`btn font-bold text-xs py-2 px-5 rounded-xl transition-all shadow-brand ${saveSelectionsMutation.isPending || isLocked
+                  disabled={saveSelectionsMutation.isPending || activeIsLocked}
+                  className={`btn font-bold text-xs py-2 px-5 rounded-xl transition-all shadow-brand ${
+                    saveSelectionsMutation.isPending || activeIsLocked
                       ? 'bg-surface-3 border border-border text-text-muted cursor-not-allowed'
                       : 'btn-primary'
-                    }`}
+                  }`}
                 >
                   {saveSelectionsMutation.isPending ? 'Saving...' : 'Save predictions'}
                 </button>
               </div>
             </div>
 
+            {/* Team grid */}
             {isLoading ? (
               <div className="flex justify-center items-center py-20">
                 <div className="w-10 h-10 border-2 border-transparent border-t-brand rounded-full animate-spin" />
@@ -440,26 +611,51 @@ export default function Bracket() {
               >
                 {filteredTeams.map((team) => {
                   const isSelected = selections[activeStage]?.has(team.external_team_id)
+                  const isWinner = activeStage === 'round_of_16' && isRo16Winner(team.external_team_id)
+                  const isDetermined = activeStage === 'round_of_16' && isRo16SlotDetermined(team.external_team_id)
+                  const isEliminated = isDetermined && !isWinner
+
                   return (
                     <button
                       key={team.id}
                       onClick={() => handleToggleTeam(team.external_team_id)}
-                      className={`glass px-2.5 py-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all relative text-center ${isSelected
-                          ? 'border-brand ring-1 ring-brand bg-brand/5 shadow-brand'
-                          : 'border-border hover:border-text-secondary/50'
-                        }`}
+                      disabled={activeIsLocked || isDetermined}
+                      title={
+                        isWinner ? 'Advanced to Round of 16 — slot locked'
+                        : isEliminated ? 'Eliminated in Round of 32'
+                        : undefined
+                      }
+                      className={`glass px-2.5 py-2 rounded-xl border flex flex-col items-center justify-center gap-1.5 transition-all relative text-center ${
+                        isWinner
+                          ? 'border-amber-500/50 bg-amber-500/5 cursor-not-allowed'
+                          : isEliminated
+                            ? 'border-red-500/20 bg-red-500/5 cursor-not-allowed opacity-40'
+                            : isSelected
+                              ? 'border-brand ring-1 ring-brand bg-brand/5 shadow-brand'
+                              : activeIsLocked
+                                ? 'border-border opacity-60 cursor-not-allowed'
+                                : 'border-border hover:border-text-secondary/50'
+                      }`}
                     >
                       <img
                         src={team.flag_url ?? 'https://flagcdn.com/w80/un.png'}
                         alt={team.name}
                         className="w-8 h-5 object-cover rounded border border-border/40 shrink-0"
-                        onError={(e) => {
-                          e.currentTarget.src = 'https://flagcdn.com/w80/un.png'
-                        }}
+                        onError={(e) => { e.currentTarget.src = 'https://flagcdn.com/w80/un.png' }}
                       />
                       <span className="text-[11px] font-extrabold text-text-primary truncate w-full">
                         {team.name}
                       </span>
+                      {isWinner && (
+                        <span className="text-[8px] font-black text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full">
+                          ✅ Ro16
+                        </span>
+                      )}
+                      {isEliminated && (
+                        <span className="text-[8px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded-full">
+                          ❌ Out
+                        </span>
+                      )}
                     </button>
                   )
                 })}
