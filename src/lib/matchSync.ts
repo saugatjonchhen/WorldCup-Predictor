@@ -55,7 +55,7 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
         status = 'live'
       }
 
-      // Parse scores safely
+            // Parse scores safely
       const apiHomeScore = game.home_score !== 'null' && game.home_score !== null && game.home_score !== undefined ? parseInt(game.home_score) : null
       const apiAwayScore = game.away_score !== 'null' && game.away_score !== null && game.away_score !== undefined ? parseInt(game.away_score) : null
 
@@ -65,6 +65,10 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
 
       const home_score = status === 'completed' ? apiHomeScore : null
       const away_score = status === 'completed' ? apiAwayScore : null
+
+      // Parse penalty scores safely
+      const apiHomePenScore = game.home_penalty_score !== 'null' && game.home_penalty_score !== null && game.home_penalty_score !== undefined ? parseInt(game.home_penalty_score) : null
+      const apiAwayPenScore = game.away_penalty_score !== 'null' && game.away_penalty_score !== null && game.away_penalty_score !== undefined ? parseInt(game.away_penalty_score) : null
 
       // Map team IDs and names
       const apiHomeExtId = game.home_team_id !== '0' && game.home_team_id !== null && game.home_team_id !== undefined ? String(game.home_team_id) : null
@@ -77,6 +81,16 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
         ? (teamMap.get(apiAwayExtId) || game.away_team_name_en) 
         : (dbMatch.stage !== 'group' ? game.away_team_label : game.away_team_name_en)
 
+      // Determine penalty winner
+      let penalty_winner: string | null = null
+      if (apiHomePenScore !== null && apiAwayPenScore !== null) {
+        if (apiHomePenScore > apiAwayPenScore) {
+          penalty_winner = homeTeamName
+        } else if (apiAwayPenScore > apiHomePenScore) {
+          penalty_winner = awayTeamName
+        }
+      }
+
       // Check if any fields changed
       const hasChanged =
         dbMatch.status !== status ||
@@ -88,7 +102,8 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
         dbMatch.home_team_ext_id !== apiHomeExtId ||
         dbMatch.away_team_ext_id !== apiAwayExtId ||
         dbMatch.home_team !== homeTeamName ||
-        dbMatch.away_team !== awayTeamName
+        dbMatch.away_team !== awayTeamName ||
+        dbMatch.penalty_winner !== penalty_winner
 
       if (hasChanged) {
         const { error: updateError } = await supabase
@@ -104,6 +119,7 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
             away_team: awayTeamName,
             home_team_ext_id: apiHomeExtId,
             away_team_ext_id: apiAwayExtId,
+            penalty_winner,
             updated_at: new Date().toISOString()
           })
           .eq('id', dbMatch.id)
