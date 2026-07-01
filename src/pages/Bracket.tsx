@@ -251,28 +251,34 @@ export default function Bracket() {
       if (!user?.id) throw new Error('Not authenticated')
 
       if (stage === 'round_of_16') {
-        // Delete only unlocked (non-winner) predictions for Ro16
-        const lockedIds = [...ro16LockedWinners]
+        // Find which locked winners are already in the database for this user
+        const existingLockedWinners = new Set(
+          userPredictions
+            .filter(p => p.stage === stage && ro16LockedWinners.has(p.team_id))
+            .map(p => p.team_id)
+        )
+
+        // Delete all predictions except the ones that are already in the DB and are locked winners
         const deleteQuery = supabase
           .from('stage_predictions')
           .delete()
           .eq('user_id', user.id)
           .eq('stage', stage)
 
-        if (lockedIds.length > 0) {
-          const { error: deleteError } = await deleteQuery.not('team_id', 'in', `(${lockedIds.join(',')})`)
+        if (existingLockedWinners.size > 0) {
+          const { error: deleteError } = await deleteQuery.not('team_id', 'in', `(${Array.from(existingLockedWinners).join(',')})`)
           if (deleteError) throw deleteError
         } else {
           const { error: deleteError } = await deleteQuery
           if (deleteError) throw deleteError
         }
 
-        // Insert only unlocked (non-winner) new selections
-        const unlockedToInsert = teamIds.filter(id => !ro16LockedWinners.has(id))
-        if (unlockedToInsert.length > 0) {
+        // Insert new selections except the ones that are already in the DB and are locked winners
+        const toInsert = teamIds.filter(id => !existingLockedWinners.has(id))
+        if (toInsert.length > 0) {
           const { error: insertError } = await supabase
             .from('stage_predictions')
-            .insert(unlockedToInsert.map(tid => ({ user_id: user.id, stage, team_id: tid })))
+            .insert(toInsert.map(tid => ({ user_id: user.id, stage, team_id: tid })))
           if (insertError) throw insertError
         }
       } else {
