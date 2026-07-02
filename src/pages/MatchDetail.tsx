@@ -296,7 +296,7 @@ export default function MatchDetail() {
                   </div>
                   {match.home_score_et !== null && match.home_score_et !== undefined && (
                     <span className="text-xs font-black text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20 whitespace-nowrap">
-                      {match.home_score + match.home_score_et} - {match.away_score + match.away_score_et} AET
+                      {(match.home_score ?? 0) + (match.home_score_et ?? 0)} - {(match.away_score ?? 0) + (match.away_score_et ?? 0)} AET
                     </span>
                   )}
                   {match.penalty_winner && (

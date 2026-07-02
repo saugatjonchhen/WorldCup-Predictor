@@ -390,7 +390,7 @@ export default function Simulator() {
                         <h4 className="text-sm font-bold text-text-primary">Match Finished (Locked)</h4>
                         <p className="text-xs text-text-secondary">
                           Final Score: {selectedMatch.home_score} - {selectedMatch.away_score}
-                          {selectedMatch.home_score_et !== null && selectedMatch.home_score_et !== undefined && ` (${selectedMatch.home_score + selectedMatch.home_score_et} - ${selectedMatch.away_score + selectedMatch.away_score_et} AET)`}
+                          {selectedMatch.home_score_et !== null && selectedMatch.home_score_et !== undefined && ` (${(selectedMatch.home_score ?? 0) + (selectedMatch.home_score_et ?? 0)} - ${(selectedMatch.away_score ?? 0) + (selectedMatch.away_score_et ?? 0)} AET)`}
                           {selectedMatch.penalty_winner && ` (Winner: ${selectedMatch.penalty_winner})`}
                         </p>
                         <p className="text-[11px] text-brand font-semibold">
