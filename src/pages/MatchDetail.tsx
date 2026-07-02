@@ -19,6 +19,8 @@ interface Match {
   status: string
   home_score: number | null
   away_score: number | null
+  home_score_et?: number | null
+  away_score_et?: number | null
   penalty_winner: string | null
   home_team_info?: { flag_url: string } | null
   away_team_info?: { flag_url: string } | null
@@ -288,8 +290,20 @@ export default function MatchDetail() {
             {/* Score / Center indicator */}
             <div className="flex flex-col items-center justify-center">
               {match.status === 'completed' || match.status === 'live' ? (
-                <div className="text-3xl sm:text-5xl font-black tracking-tight px-6 py-2 bg-surface-2 rounded-2xl border border-border">
-                  {match.home_score} : {match.away_score}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-3xl sm:text-5xl font-black tracking-tight px-6 py-2 bg-surface-2 rounded-2xl border border-border">
+                    {match.home_score} : {match.away_score}
+                  </div>
+                  {match.home_score_et !== null && match.home_score_et !== undefined && (
+                    <span className="text-xs font-black text-amber-500 bg-amber-500/10 px-2.5 py-1 rounded border border-amber-500/20 whitespace-nowrap">
+                      {match.home_score + match.home_score_et} - {match.away_score + match.away_score_et} AET
+                    </span>
+                  )}
+                  {match.penalty_winner && (
+                    <span className="text-[10px] font-bold text-text-muted mt-1">
+                      Winner: {match.penalty_winner}
+                    </span>
+                  )}
                 </div>
               ) : (
                 <div className="text-lg font-bold text-text-muted">VS</div>

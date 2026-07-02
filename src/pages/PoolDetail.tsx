@@ -492,6 +492,11 @@ export default function PoolDetail() {
             <span className="font-black text-text-primary text-[10px] bg-surface-3 px-1.5 py-0.5 rounded">
               {match.home_score} : {match.away_score}
             </span>
+            {match.home_score_et !== null && match.home_score_et !== undefined && (
+              <span className="text-[8px] text-amber-500 font-bold mt-0.5 whitespace-nowrap">
+                ({match.home_score + match.home_score_et}:{match.away_score + match.away_score_et} AET)
+              </span>
+            )}
           </div>
           <div className="flex flex-col items-center gap-0.5 min-w-[36px] flex-shrink-0">
             <img src={match.away_team_info?.flag_url || 'https://flagcdn.com/w80/un.png'} className="w-6 h-4 object-cover rounded border border-border/30" />
@@ -609,11 +614,18 @@ export default function PoolDetail() {
              {match.status === 'scheduled' ? (
                <span className="text-xs font-black text-text-muted">VS</span>
              ) : (
-               <div className="flex items-center gap-1.5 bg-surface-2 px-2 py-1 rounded-md border border-border text-sm font-black">
-                 <span>{match.home_score ?? '-'}</span>
-                 <span className="text-[10px] text-text-muted">:</span>
-                 <span>{match.away_score ?? '-'}</span>
-               </div>
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center gap-1.5 bg-surface-2 px-2 py-1 rounded-md border border-border text-sm font-black">
+                    <span>{match.home_score ?? '-'}</span>
+                    <span className="text-[10px] text-text-muted">:</span>
+                    <span>{match.away_score ?? '-'}</span>
+                  </div>
+                  {match.home_score_et !== null && match.home_score_et !== undefined && (
+                    <span className="text-[9px] font-bold text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 whitespace-nowrap">
+                      {match.home_score + match.home_score_et}:{match.away_score + match.away_score_et} AET
+                    </span>
+                  )}
+                </div>
              )}
            </div>
 
@@ -1062,8 +1074,15 @@ export default function PoolDetail() {
                               </div>
                               
                               {(match.status === 'completed' || match.status === 'live') && (
-                                <div className="text-[10px] font-bold text-brand bg-brand-muted px-2 py-0.5 rounded border border-brand/10 self-center">
-                                  {match.home_score} - {match.away_score}
+                                <div className="flex flex-col items-center gap-0.5 self-center">
+                                  <div className="text-[10px] font-bold text-brand bg-brand-muted px-2 py-0.5 rounded border border-brand/10">
+                                    {match.home_score} - {match.away_score}
+                                  </div>
+                                  {match.home_score_et !== null && match.home_score_et !== undefined && (
+                                    <span className="text-[8px] font-bold text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded border border-amber-500/20 whitespace-nowrap">
+                                      {match.home_score + match.home_score_et}-{match.away_score + match.away_score_et} AET
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </button>
@@ -1104,8 +1123,15 @@ export default function PoolDetail() {
                               
                               <div className="flex flex-col items-center justify-center">
                                 {selectedMatch.status === 'completed' || selectedMatch.status === 'live' ? (
-                                  <div className="text-xl font-black bg-surface-3 px-3.5 py-1.5 rounded-xl border border-border">
-                                    {selectedMatch.home_score} : {selectedMatch.away_score}
+                                  <div className="flex flex-col items-center gap-1">
+                                    <div className="text-xl font-black bg-surface-3 px-3.5 py-1.5 rounded-xl border border-border">
+                                      {selectedMatch.home_score} : {selectedMatch.away_score}
+                                    </div>
+                                    {selectedMatch.home_score_et !== null && selectedMatch.home_score_et !== undefined && (
+                                      <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 whitespace-nowrap">
+                                        {selectedMatch.home_score + selectedMatch.home_score_et} - {selectedMatch.away_score + selectedMatch.away_score_et} AET
+                                      </span>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-sm font-black text-text-muted">VS</span>

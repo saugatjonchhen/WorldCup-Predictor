@@ -22,6 +22,8 @@ interface Match {
   status: string
   home_score: number | null
   away_score: number | null
+  home_score_et?: number | null
+  away_score_et?: number | null
   penalty_winner: string | null
   home_team_info?: { flag_url: string } | null
   away_team_info?: { flag_url: string } | null
@@ -637,6 +639,11 @@ export default function Dashboard() {
                             <span className="text-xs text-text-muted font-bold">:</span>
                             <span className="text-xl font-black">{match.away_score ?? '-'}</span>
                           </div>
+                          {match.home_score_et !== null && match.home_score_et !== undefined && (
+                            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 whitespace-nowrap">
+                              {match.home_score + match.home_score_et} - {match.away_score + match.away_score_et} AET
+                            </span>
+                          )}
                           {isSaved && (
                             <div className="text-[10px] font-bold text-brand bg-brand/10 px-2.5 py-0.5 rounded-md border border-brand/20">
                               Pred: {savedPred?.home_score_pred} - {savedPred?.away_score_pred}
@@ -1082,6 +1089,11 @@ export default function Dashboard() {
                             <span className="text-xs text-text-muted font-bold">:</span>
                             <span className="text-xl font-black">{match.away_score ?? '-'}</span>
                           </div>
+                          {match.home_score_et !== null && match.home_score_et !== undefined && (
+                            <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 whitespace-nowrap">
+                              {match.home_score + match.home_score_et} - {match.away_score + match.away_score_et} AET
+                            </span>
+                          )}
                           {isSaved && (
                             <div className="text-[10px] font-bold text-brand bg-brand/10 px-2.5 py-0.5 rounded-md border border-brand/20">
                               Pred: {savedPred?.home_score_pred} - {savedPred?.away_score_pred}

@@ -20,6 +20,8 @@ interface Match {
   live_minute: string | null
   home_score: number | null
   away_score: number | null
+  home_score_et?: number | null
+  away_score_et?: number | null
   penalty_winner: string | null
   home_team_info?: { flag_url: string } | null
   away_team_info?: { flag_url: string } | null
@@ -388,7 +390,8 @@ export default function Simulator() {
                         <h4 className="text-sm font-bold text-text-primary">Match Finished (Locked)</h4>
                         <p className="text-xs text-text-secondary">
                           Final Score: {selectedMatch.home_score} - {selectedMatch.away_score}
-                          {selectedMatch.penalty_winner && ` (Winner on Pens: ${selectedMatch.penalty_winner})`}
+                          {selectedMatch.home_score_et !== null && selectedMatch.home_score_et !== undefined && ` (${selectedMatch.home_score + selectedMatch.home_score_et} - ${selectedMatch.away_score + selectedMatch.away_score_et} AET)`}
+                          {selectedMatch.penalty_winner && ` (Winner: ${selectedMatch.penalty_winner})`}
                         </p>
                         <p className="text-[11px] text-brand font-semibold">
                           Official points have been calculated and leaderboards updated!

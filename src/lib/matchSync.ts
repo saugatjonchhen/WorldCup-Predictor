@@ -6,6 +6,65 @@ export interface SyncResult {
   error?: string
 }
 
+function parseScorers(scorersInput: any): string[] {
+  if (!scorersInput) return []
+  if (Array.isArray(scorersInput)) return scorersInput
+  if (typeof scorersInput !== 'string') return []
+  
+  const content = scorersInput.trim()
+  if (content === 'null' || content === '{}' || !content) return []
+  
+  if (content.startsWith('{') && content.endsWith('}')) {
+    const inner = content.slice(1, -1).trim()
+    if (!inner) return []
+
+    const matches: string[] = []
+    let current = ''
+    let inQuotes = false
+    for (let i = 0; i < inner.length; i++) {
+      const char = inner[i]
+      if (char === '"') {
+        inQuotes = !inQuotes
+      } else if (char === ',' && !inQuotes) {
+        matches.push(current.trim())
+        current = ''
+      } else {
+        current += char
+      }
+    }
+    if (current) {
+      matches.push(current.trim())
+    }
+    return matches
+  }
+  
+  if (content.startsWith('[') && content.endsWith(']')) {
+    try {
+      return JSON.parse(content)
+    } catch {
+      return []
+    }
+  }
+
+  return [content]
+}
+
+function getGoalsIn90(scorers: string[]): number {
+  let count = 0
+  for (const scorer of scorers) {
+    const match = scorer.match(/(\d+)(?:\+(\d+))?'/)
+    if (match) {
+      const min = parseInt(match[1], 10)
+      if (min <= 90) {
+        count++
+      }
+    } else {
+      count++
+    }
+  }
+  return count
+}
+
 export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResult> {
   try {
     // 1. Fetch current matches from Supabase
@@ -63,8 +122,10 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
       const live_away_score = status !== 'scheduled' ? apiAwayScore : null
       const live_minute = game.time_elapsed !== 'null' && game.time_elapsed !== null && game.time_elapsed !== undefined ? String(game.time_elapsed) : 'notstarted'
 
-      const home_score = status === 'completed' ? apiHomeScore : null
-      const away_score = status === 'completed' ? apiAwayScore : null
+      let home_score = status === 'completed' ? apiHomeScore : null
+      let away_score = status === 'completed' ? apiAwayScore : null
+      let home_score_et: number | null = null
+      let away_score_et: number | null = null
 
       // Parse penalty scores safely
       const apiHomePenScore = game.home_penalty_score !== 'null' && game.home_penalty_score !== null && game.home_penalty_score !== undefined ? parseInt(game.home_penalty_score) : null
@@ -91,6 +152,36 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
         }
       }
 
+      // Check if it's a completed knockout match that went to extra time (won after 90m without penalties)
+      if (status === 'completed' && dbMatch.stage !== 'group' && apiHomeScore !== null && apiAwayScore !== null) {
+        if (apiHomePenScore !== null && apiAwayPenScore !== null) {
+          // Went to penalties: the 90m/extra-time score was a draw (e.g. 1-1)
+          home_score_et = 0
+          away_score_et = 0
+        } else {
+          const homeScorers = parseScorers(game.home_scorers)
+          const awayScorers = parseScorers(game.away_scorers)
+
+          // Only calculate 90m score if we have scorers data
+          const hasScorersData = (homeScorers.length > 0 || apiHomeScore === 0) &&
+                                (awayScorers.length > 0 || apiAwayScore === 0)
+          
+          if (hasScorersData) {
+            const homeGoals90 = getGoalsIn90(homeScorers)
+            const awayGoals90 = getGoalsIn90(awayScorers)
+
+            // If it was a draw at 90 minutes but the final score was decided (not a draw)
+            if (homeGoals90 === awayGoals90 && apiHomeScore !== apiAwayScore) {
+              home_score = homeGoals90
+              away_score = awayGoals90
+              home_score_et = apiHomeScore - homeGoals90
+              away_score_et = apiAwayScore - awayGoals90
+              penalty_winner = apiHomeScore > apiAwayScore ? homeTeamName : awayTeamName
+            }
+          }
+        }
+      }
+
       // Check if any fields changed
       const hasChanged =
         dbMatch.status !== status ||
@@ -103,7 +194,9 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
         dbMatch.away_team_ext_id !== apiAwayExtId ||
         dbMatch.home_team !== homeTeamName ||
         dbMatch.away_team !== awayTeamName ||
-        dbMatch.penalty_winner !== penalty_winner
+        dbMatch.penalty_winner !== penalty_winner ||
+        dbMatch.home_score_et !== home_score_et ||
+        dbMatch.away_score_et !== away_score_et
 
       if (hasChanged) {
         const { error: updateError } = await supabase
@@ -120,6 +213,8 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
             home_team_ext_id: apiHomeExtId,
             away_team_ext_id: apiAwayExtId,
             penalty_winner,
+            home_score_et,
+            away_score_et,
             updated_at: new Date().toISOString()
           })
           .eq('id', dbMatch.id)
