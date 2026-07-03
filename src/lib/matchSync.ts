@@ -162,11 +162,12 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
           const homeScorers = parseScorers(game.home_scorers)
           const awayScorers = parseScorers(game.away_scorers)
 
-          // Only calculate 90m score if we have scorers data
-          const hasScorersData = (homeScorers.length > 0 || apiHomeScore === 0) &&
-                                (awayScorers.length > 0 || apiAwayScore === 0)
+          // Only calculate 90m score if we have complete scorers data
+          const hasCompleteScorersData =
+            homeScorers.length === apiHomeScore &&
+            awayScorers.length === apiAwayScore
           
-          if (hasScorersData) {
+          if (hasCompleteScorersData) {
             const homeGoals90 = getGoalsIn90(homeScorers)
             const awayGoals90 = getGoalsIn90(awayScorers)
 
@@ -176,7 +177,6 @@ export async function syncLiveScores(supabase: SupabaseClient): Promise<SyncResu
               away_score = awayGoals90
               home_score_et = apiHomeScore - homeGoals90
               away_score_et = apiAwayScore - awayGoals90
-              penalty_winner = apiHomeScore > apiAwayScore ? homeTeamName : awayTeamName
             }
           }
         }
