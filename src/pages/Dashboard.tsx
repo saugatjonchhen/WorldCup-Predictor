@@ -169,6 +169,13 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isAdmin || matches.length === 0) return
 
+    // Sync immediately on load/mount
+    syncLiveScores(supabase).then((res) => {
+      if (res.success && res.updatedCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['matches'] })
+      }
+    })
+
     // Check if there are active (kicked off) matches that are not completed
     const hasActiveMatch = matches.some((match) => {
       const kickoff = new Date(match.kickoff_time)
@@ -177,13 +184,6 @@ export default function Dashboard() {
     })
 
     if (!hasActiveMatch) return
-
-    // Sync immediately on load/mount
-    syncLiveScores(supabase).then((res) => {
-      if (res.success && res.updatedCount > 0) {
-        queryClient.invalidateQueries({ queryKey: ['matches'] })
-      }
-    })
 
     // Poll every 60 seconds if any match is active/uncompleted
     const interval = setInterval(() => {
