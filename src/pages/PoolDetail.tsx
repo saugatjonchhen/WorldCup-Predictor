@@ -867,13 +867,21 @@ export default function PoolDetail() {
                                 {/* Rank Column */}
                                 <td className="py-3.5 px-4 text-center font-bold">
                                   {entry.rank === 1 ? (
-                                    <span className="text-gold text-base">👑</span>
+                                    <div className="flex items-center justify-center gap-1">
+                                      <span>1</span><span className="text-yellow-500 text-lg">🥇</span>
+                                    </div>
                                   ) : entry.rank === 2 ? (
-                                    <span className="text-gray-400">🥈</span>
+                                    <div className="flex items-center justify-center gap-1">
+                                      <span>2</span><span className="text-gray-400 text-lg">🥈</span>
+                                    </div>
                                   ) : entry.rank === 3 ? (
-                                    <span className="text-amber-700">🥉</span>
+                                    <div className="flex items-center justify-center gap-1">
+                                      <span>3</span><span className="text-amber-700 text-lg">🥉</span>
+                                    </div>
                                   ) : (
-                                    entry.rank
+                                    <div className="flex items-center justify-center gap-1">
+                                      <span>{entry.rank}</span><span className="text-pink-500 text-lg">🏵️</span>
+                                    </div>
                                   )}
                                 </td>
 
