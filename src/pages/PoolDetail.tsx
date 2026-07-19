@@ -868,7 +868,7 @@ export default function PoolDetail() {
                                 <td className="py-3.5 px-4 text-center font-bold">
                                   {entry.rank === 1 ? (
                                     <div className="flex items-center justify-center gap-1">
-                                      <span>1</span><span className="text-yellow-500 text-lg">🥇</span>
+                                      <span>1</span><span className="text-yellow-500 text-lg">👑</span>
                                     </div>
                                   ) : entry.rank === 2 ? (
                                     <div className="flex items-center justify-center gap-1">
@@ -880,7 +880,7 @@ export default function PoolDetail() {
                                     </div>
                                   ) : (
                                     <div className="flex items-center justify-center gap-1">
-                                      <span>{entry.rank}</span><span className="text-pink-500 text-lg">🏵️</span>
+                                      <span>{entry.rank}</span><span className="text-orange-700 text-lg">🏅</span>
                                     </div>
                                   )}
                                 </td>
