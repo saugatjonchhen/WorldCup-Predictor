@@ -391,7 +391,7 @@ export default function Dashboard() {
 
     if (finalMatch && finalMatch.status === 'completed') {
       const isHomeWinner = (finalMatch.penalty_winner && finalMatch.penalty_winner === finalMatch.home_team) ||
-        (!finalMatch.penalty_winner && (finalMatch.home_score ?? 0) > (finalMatch.away_score ?? 0))
+        (!finalMatch.penalty_winner && ((finalMatch.home_score ?? 0) + (finalMatch.home_score_et ?? 0)) > ((finalMatch.away_score ?? 0) + (finalMatch.away_score_et ?? 0)))
       
       championTeam = isHomeWinner ? finalMatch.home_team : finalMatch.away_team
       championFlag = isHomeWinner ? (finalMatch.home_team_info?.flag_url ?? null) : (finalMatch.away_team_info?.flag_url ?? null)
@@ -409,12 +409,12 @@ export default function Dashboard() {
 
       const isHomeWinner = match.status === 'completed' && (
         (match.penalty_winner && match.penalty_winner === match.home_team) ||
-        (!match.penalty_winner && (match.home_score ?? 0) > (match.away_score ?? 0))
+        (!match.penalty_winner && ((match.home_score ?? 0) + (match.home_score_et ?? 0)) > ((match.away_score ?? 0) + (match.away_score_et ?? 0)))
       )
 
       const isAwayWinner = match.status === 'completed' && (
         (match.penalty_winner && match.penalty_winner === match.away_team) ||
-        (!match.penalty_winner && (match.away_score ?? 0) > (match.home_score ?? 0))
+        (!match.penalty_winner && ((match.away_score ?? 0) + (match.away_score_et ?? 0)) > ((match.home_score ?? 0) + (match.home_score_et ?? 0)))
       )
 
       const kickoffDate = new Date(match.kickoff_time)
